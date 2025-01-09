@@ -152,57 +152,49 @@ var vulkanImageOffset = new VkOffset2D {
 var vulkanSurfaceHandle = ((SafeHandle?)null);
 var windowHandle = ((SafeHandle?)null);
 
-WaylandSharp.WlDisplay wlDisplay = default!;
-WaylandSharp.WlSurface wlSurface = default!;
+// TODO: Refactor Wayland nonsense...
+var wlCompositor = ((WlCompositor?)null);
+var wlDisplay = ((WlDisplay?)null);
+var wlSurface = ((WlSurface?)null);
+var wlRegistry = ((WlRegistry?)null);
+var xdgShell = ((XdgWmBase?)null);
+var xdgSurface = ((XdgSurface?)null);
+var xdgToplevel = ((XdgToplevel?)null);
 
 try {
     switch (displayType) {
         case 0U:
-            WaylandSharp.WlCompositor wlCompositor;
-            WaylandSharp.WlShm wlShm = default!;
-            WaylandSharp.XdgWmBase xdgShell = default!;
-            WaylandSharp.XdgSurface xdgSurface;
-            WaylandSharp.XdgToplevel xdgToplevel;
-
             unsafe {
                 wlDisplay = WlDisplay.Connect();
+                wlRegistry = wlDisplay.GetRegistry();
 
-                var registry = wlDisplay.GetRegistry();
-
-                registry.Global += (object? _, WlRegistry.GlobalEventArgs args) => {
+                wlRegistry.Global += (_, args) => {
                     if ("wl_compositor" == args.Interface) {
-                        wlCompositor = registry.Bind<WlCompositor>(
+                        wlCompositor = wlRegistry.Bind<WlCompositor>(
                             args.Name,
                             args.Interface,
                             args.Version
                         );
                         wlSurface = wlCompositor.CreateSurface();
                     }
-                    if ("wl_shm" == args.Interface) {
-                        wlShm = registry.Bind<WlShm>(
-                            args.Name,
-                            args.Interface,
-                            args.Version
-                        );
-                    }
                     if ("xdg_wm_base" == args.Interface) {
-                        xdgShell = registry.Bind<XdgWmBase>(
+                        xdgShell = wlRegistry.Bind<XdgWmBase>(
                             args.Name,
                             args.Interface,
                             args.Version
                         );
                     }
                 };
-                registry.GlobalRemove += (object? _, WaylandSharp.WlRegistry.GlobalRemoveEventArgs args) => { };
+                wlRegistry.GlobalRemove += (_, args) => { };
 
-                wlDisplay.Roundtrip();
+                _ = wlDisplay.Roundtrip();
 
-                xdgSurface = xdgShell.GetXdgSurface(surface: wlSurface);
+                xdgSurface = xdgShell!.GetXdgSurface(surface: wlSurface!);
                 xdgToplevel = xdgSurface.GetToplevel();
 
                 xdgToplevel.SetAppId("BYTRCWLA");
                 xdgToplevel.SetTitle("BYTRCWLT");
-                wlSurface.Commit();
+                wlSurface!.Commit();
 
                 _ = wlDisplay.Dispatch();
 
@@ -1093,4 +1085,12 @@ finally {
     windowHandle?.Dispose();
     dependency0Handle?.Dispose();
     dependency1Handle?.Dispose();
+
+    wlDisplay?.Dispose();
+    wlRegistry?.Dispose();
+    wlCompositor?.Dispose();
+    wlSurface?.Dispose();
+    xdgToplevel?.Dispose();
+    xdgSurface?.Dispose();
+    xdgShell?.Dispose();
 }
