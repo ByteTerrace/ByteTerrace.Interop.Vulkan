@@ -16,24 +16,19 @@ public sealed class SafeVulkanSurfaceHandle : SafeHandleZeroOrMinusOneIsInvalid
         delegate* unmanaged<VkInstance, TCreateInfo*, VkAllocationCallbacks*, VkSurfaceKHR*, VkResult> createMethod,
         SurfaceDestroyMethod destroyMethod,
         SafeVulkanInstanceHandle instanceHandle,
-        out VkResult result,
         nint pAllocator = 0
     ) where TCreateInfo : unmanaged {
-        result = VkResult.VK_ERROR_UNKNOWN;
+        ArgumentNullException.ThrowIfNull(argument: destroyMethod, paramName: nameof(destroyMethod));
+        ArgumentNullException.ThrowIfNull(argument: instanceHandle, paramName: nameof(instanceHandle));
 
         var addRefCountSuccess = false;
-        var surfaceHandle = new SafeVulkanSurfaceHandle(
-            destroyMethod: destroyMethod,
-            instanceHandle: instanceHandle,
-            pAllocator: pAllocator
-        );
 
-        instanceHandle.DangerousAddRef(success: ref addRefCountSuccess);
+        try {
+            instanceHandle.DangerousAddRef(success: ref addRefCountSuccess);
 
-        if (addRefCountSuccess) {
             VkSurfaceKHR surface;
 
-            result = createMethod(
+            var result = createMethod(
                 ((VkInstance)instanceHandle.DangerousGetHandle()),
                 &createInfo,
                 ((VkAllocationCallbacks*)pAllocator),
@@ -41,14 +36,26 @@ public sealed class SafeVulkanSurfaceHandle : SafeHandleZeroOrMinusOneIsInvalid
             );
 
             if (VkResult.VK_SUCCESS == result) {
+                var surfaceHandle = new SafeVulkanSurfaceHandle(
+                    destroyMethod: destroyMethod,
+                    instanceHandle: instanceHandle,
+                    pAllocator: pAllocator
+                );
+
                 surfaceHandle.SetHandle(handle: ((nint)surface));
+
+                return surfaceHandle;
             }
-            else {
+
+            return ThrowHelper.ThrowExternalException<SafeVulkanSurfaceHandle>(error: result);
+        }
+        catch {
+            if (addRefCountSuccess) {
                 instanceHandle.DangerousRelease();
             }
-        }
 
-        return surfaceHandle;
+            throw;
+        }
     }
 
     private readonly SurfaceDestroyMethod m_destroyMethod;
@@ -66,12 +73,19 @@ public sealed class SafeVulkanSurfaceHandle : SafeHandleZeroOrMinusOneIsInvalid
     }
 
     protected unsafe override bool ReleaseHandle() {
-        m_destroyMethod(
-            instance: ((VkInstance)m_instanceHandle.DangerousGetHandle()),
-            pAllocator: ((VkAllocationCallbacks*)m_pAllocator),
+        var destroyMethod = m_destroyMethod;
+        var instanceHandle = m_instanceHandle;
+        var pAllocator = m_pAllocator;
+
+        destroyMethod(
+            instance: ((VkInstance)instanceHandle.DangerousGetHandle()),
+            pAllocator: ((VkAllocationCallbacks*)pAllocator),
             surface: ((VkSurfaceKHR)handle)
         );
-        m_instanceHandle.DangerousRelease();
+
+        if ((instanceHandle is not null) && !instanceHandle.IsClosed && !instanceHandle.IsInvalid) {
+            instanceHandle.DangerousRelease();
+        }
 
         return true;
     }

@@ -10,23 +10,18 @@ public sealed class SafeVulkanPipelineHandle : SafeHandleZeroOrMinusOneIsInvalid
         VkGraphicsPipelineCreateInfo createInfo,
         SafeVulkanDeviceHandle logicalDeviceHandle,
         VkPipelineCache pipelineCache,
-        out VkResult result,
         nint pAllocator = 0
     ) {
-        result = VkResult.VK_ERROR_UNKNOWN;
+        ArgumentNullException.ThrowIfNull(argument: logicalDeviceHandle, paramName: nameof(logicalDeviceHandle));
 
         var addRefCountSuccess = false;
-        var pipelineHandle = new SafeVulkanPipelineHandle(
-            deviceHandle: logicalDeviceHandle,
-            pAllocator: pAllocator
-        );
 
-        logicalDeviceHandle.DangerousAddRef(success: ref addRefCountSuccess);
+        try {
+            logicalDeviceHandle.DangerousAddRef(success: ref addRefCountSuccess);
 
-        if (addRefCountSuccess) {
             VkPipeline pipeline;
 
-            result = vkCreateGraphicsPipelines(
+            var result = vkCreateGraphicsPipelines(
                 createInfoCount: 1U,
                 device: ((VkDevice)logicalDeviceHandle.DangerousGetHandle()),
                 pAllocator: ((VkAllocationCallbacks*)pAllocator),
@@ -36,14 +31,25 @@ public sealed class SafeVulkanPipelineHandle : SafeHandleZeroOrMinusOneIsInvalid
             );
 
             if (VkResult.VK_SUCCESS == result) {
+                var pipelineHandle = new SafeVulkanPipelineHandle(
+                    deviceHandle: logicalDeviceHandle,
+                    pAllocator: pAllocator
+                );
+
                 pipelineHandle.SetHandle(handle: ((nint)pipeline));
+
+                return pipelineHandle;
             }
-            else {
+
+            return ThrowHelper.ThrowExternalException<SafeVulkanPipelineHandle>(error: result);
+        }
+        catch {
+            if (addRefCountSuccess) {
                 logicalDeviceHandle.DangerousRelease();
             }
-        }
 
-        return pipelineHandle;
+            throw;
+        }
     }
 
     private readonly SafeVulkanDeviceHandle m_deviceHandle;
@@ -58,12 +64,18 @@ public sealed class SafeVulkanPipelineHandle : SafeHandleZeroOrMinusOneIsInvalid
     }
 
     protected unsafe override bool ReleaseHandle() {
+        var deviceHandle = m_deviceHandle;
+        var pAllocator = m_pAllocator;
+
         vkDestroyPipeline(
-            device: ((VkDevice)m_deviceHandle.DangerousGetHandle()),
-            pAllocator: ((VkAllocationCallbacks*)m_pAllocator),
+            device: ((VkDevice)deviceHandle.DangerousGetHandle()),
+            pAllocator: ((VkAllocationCallbacks*)pAllocator),
             pipeline: ((VkPipeline)handle)
         );
-        m_deviceHandle.DangerousRelease();
+
+        if ((deviceHandle is not null) && !deviceHandle.IsClosed && !deviceHandle.IsInvalid) {
+            deviceHandle.DangerousRelease();
+        }
 
         return true;
     }

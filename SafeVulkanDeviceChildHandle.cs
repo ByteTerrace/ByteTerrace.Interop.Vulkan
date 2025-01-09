@@ -22,24 +22,20 @@ public sealed class SafeVulkanDeviceChildHandle<THandle> : SafeHandleZeroOrMinus
         DeviceChildCreateMethod<TCreateInfo> createMethod,
         DeviceChildDestroyMethod destroyMethod,
         SafeVulkanDeviceHandle logicalDeviceHandle,
-        out VkResult result,
         nint pAllocator = 0
     ) where TCreateInfo : unmanaged {
-        result = VkResult.VK_ERROR_UNKNOWN;
+        ArgumentNullException.ThrowIfNull(argument: createMethod, paramName: nameof(createMethod));
+        ArgumentNullException.ThrowIfNull(argument: destroyMethod, paramName: nameof(destroyMethod));
+        ArgumentNullException.ThrowIfNull(argument: logicalDeviceHandle, paramName: nameof(logicalDeviceHandle));
 
         var addRefCountSuccess = false;
-        var childHandle = new SafeVulkanDeviceChildHandle<THandle>(
-            destroyMethod: destroyMethod,
-            deviceHandle: logicalDeviceHandle,
-            pAllocator: pAllocator
-        );
 
-        logicalDeviceHandle.DangerousAddRef(success: ref addRefCountSuccess);
+        try {
+            logicalDeviceHandle.DangerousAddRef(success: ref addRefCountSuccess);
 
-        if (addRefCountSuccess) {
             THandle handle;
 
-            result = createMethod(
+            var result = createMethod(
                 device: ((VkDevice)logicalDeviceHandle.DangerousGetHandle()),
                 pAllocator: ((VkAllocationCallbacks*)pAllocator),
                 pCreateInfo: &createInfo,
@@ -47,14 +43,26 @@ public sealed class SafeVulkanDeviceChildHandle<THandle> : SafeHandleZeroOrMinus
             );
 
             if (VkResult.VK_SUCCESS == result) {
+                var childHandle = new SafeVulkanDeviceChildHandle<THandle>(
+                    destroyMethod: destroyMethod,
+                    deviceHandle: logicalDeviceHandle,
+                    pAllocator: pAllocator
+                );
+
                 childHandle.SetHandle(handle: *((nint*)&handle));
+
+                return childHandle;
             }
-            else {
+
+            return ThrowHelper.ThrowExternalException<SafeVulkanDeviceChildHandle<THandle>>(error: result);
+        }
+        catch {
+            if (addRefCountSuccess) {
                 logicalDeviceHandle.DangerousRelease();
             }
-        }
 
-        return childHandle;
+            throw;
+        }
     }
 
     private readonly DeviceChildDestroyMethod m_destroyMethod;
@@ -72,15 +80,21 @@ public sealed class SafeVulkanDeviceChildHandle<THandle> : SafeHandleZeroOrMinus
     }
 
     protected unsafe override bool ReleaseHandle() {
+        var destroyMethod = m_destroyMethod;
+        var deviceHandle = m_deviceHandle;
+        var pAllocator = m_pAllocator;
+
         fixed (nint* pHandle = &handle) {
-            m_destroyMethod(
-                device: ((VkDevice)m_deviceHandle.DangerousGetHandle()),
+            destroyMethod(
+                device: ((VkDevice)deviceHandle.DangerousGetHandle()),
                 handle: *((THandle*)pHandle),
-                pAllocator: ((VkAllocationCallbacks*)m_pAllocator)
+                pAllocator: ((VkAllocationCallbacks*)pAllocator)
            );
         }
 
-        m_deviceHandle.DangerousRelease();
+        if ((deviceHandle is not null) && !deviceHandle.IsClosed && !deviceHandle.IsInvalid) {
+            deviceHandle.DangerousRelease();
+        }
 
         return true;
     }

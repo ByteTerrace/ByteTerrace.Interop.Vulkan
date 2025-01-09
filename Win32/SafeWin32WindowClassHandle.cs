@@ -49,25 +49,22 @@ public sealed class SafeWin32WindowClassHandle : SafeHandleZeroOrMinusOneIsInval
             instance.DangerousAddRef(success: ref instanceAddRef);
 
             fixed (char* pClassName = className) {
-                var windowClassSafeHandle = new SafeWin32WindowClassHandle(
-                    className: className,
-                    instance: instance
-                );
-                var windowClassHandle = PInvoke.RegisterClassEx(param0: new WNDCLASSEXW {
+                var windowClassAtom = PInvoke.RegisterClassEx(param0: new WNDCLASSEXW {
                     cbSize = (uint)sizeof(WNDCLASSEXW),
                     hInstance = ((HINSTANCE)instance.DangerousGetHandle()),
                     lpfnWndProc = ((delegate* unmanaged[Stdcall]<HWND, uint, WPARAM, LPARAM, LRESULT>)Marshal.GetFunctionPointerForDelegate(d: windowProcedureDelegate)),
                     lpszClassName = pClassName,
                 });
 
-                if (ushort.MinValue == windowClassHandle) {
-                    throw new ExternalException(message: Marshal.GetLastPInvokeErrorMessage());
-                }
-                else {
-                    windowClassSafeHandle.SetHandle(handle: windowClassHandle);
+                if (ushort.MinValue != windowClassAtom) {
+                    var windowClassSafeHandle = new SafeWin32WindowClassHandle(instance: instance);
+
+                    windowClassSafeHandle.SetHandle(handle: windowClassAtom);
+
+                    return windowClassSafeHandle;
                 }
 
-                return windowClassSafeHandle;
+                throw new ExternalException(message: Marshal.GetLastPInvokeErrorMessage());
             }
         }
         catch {
@@ -82,24 +79,18 @@ public sealed class SafeWin32WindowClassHandle : SafeHandleZeroOrMinusOneIsInval
         }
     }
 
-    private readonly string m_className;
     private readonly SafeHandle m_instance;
 
-    private SafeWin32WindowClassHandle(
-        string className,
-        SafeHandle instance
-    ) : base(ownsHandle: true) {
-        m_className = className;
+    private SafeWin32WindowClassHandle(SafeHandle instance) : base(ownsHandle: true) {
         m_instance = instance;
     }
 
     protected unsafe override bool ReleaseHandle() {
 #pragma warning disable CA1416
-        var @className = m_className;
         var instance = m_instance;
         var result = PInvoke.UnregisterClass(
-            hInstance: instance,
-            lpClassName: @className
+            hInstance: ((HINSTANCE)instance.DangerousGetHandle()),
+            lpClassName: ((PCWSTR)(char*)handle)
         );
 
         if ((instance is not null) && !instance.IsClosed && !instance.IsInvalid) {
