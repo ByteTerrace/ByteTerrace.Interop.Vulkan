@@ -25,7 +25,7 @@ public sealed class SafeVulkanDeviceChildHandle<THandle> : SafeHandleZeroOrMinus
         out VkResult result,
         nint pAllocator = 0
     ) where TCreateInfo : unmanaged {
-        result = VkResult.VK_ERROR_INITIALIZATION_FAILED;
+        result = VkResult.VK_ERROR_UNKNOWN;
 
         var addRefCountSuccess = false;
         var childHandle = new SafeVulkanDeviceChildHandle<THandle>(

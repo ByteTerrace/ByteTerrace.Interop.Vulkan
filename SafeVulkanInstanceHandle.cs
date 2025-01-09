@@ -24,92 +24,6 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
     [MethodImpl(methodImplOptions: MethodImplOptions.AggressiveInlining)]
     private unsafe static sbyte* DangerousGetUtf8Pointer(ReadOnlySpan<byte> span) =>
         ((sbyte*)Unsafe.AsPointer(value: ref MemoryMarshal.GetReference(span: span)));
-    private unsafe static VkResult GetInstanceExtensionProperties(out VkExtensionProperties[] properties) {
-        var count = uint.MinValue;
-        var result = vkEnumerateInstanceExtensionProperties(
-            pLayerName: null,
-            pProperties: null,
-            pPropertyCount: &count
-        );
-
-        if (VkResult.VK_SUCCESS != result) { goto error; }
-
-        properties = new VkExtensionProperties[count];
-
-        fixed (VkExtensionProperties* pProperties = properties) {
-            result = vkEnumerateInstanceExtensionProperties(
-                pLayerName: default,
-                pProperties: pProperties,
-                pPropertyCount: &count
-            );
-        }
-
-        if (VkResult.VK_SUCCESS != result) { goto error; }
-
-        return result;
-    error:
-        properties = [];
-
-        return result;
-    }
-    private unsafe static VkResult GetInstanceLayerProperties(out VkLayerProperties[] properties) {
-        var array = Array.Empty<VkLayerProperties>();
-        var count = uint.MinValue;
-        var result = vkEnumerateInstanceLayerProperties(
-            pProperties: null,
-            pPropertyCount: &count
-        );
-
-        if (VkResult.VK_SUCCESS != result) { goto error; }
-
-        properties = new VkLayerProperties[count];
-
-        fixed (VkLayerProperties* pProperties = properties) {
-            result = vkEnumerateInstanceLayerProperties(
-                pProperties: pProperties,
-                pPropertyCount: &count
-            );
-        }
-
-        if (VkResult.VK_SUCCESS != result) { goto error; }
-
-        return result;
-    error:
-        properties = [];
-
-        return result;
-    }
-    private unsafe static VkResult GetPhysicalDevices(
-        VkInstance instance,
-        out VkPhysicalDevice[] physicalDevices
-    ) {
-        var count = uint.MinValue;
-        var result = vkEnumeratePhysicalDevices(
-            instance: instance,
-            pPhysicalDeviceCount: &count,
-            pPhysicalDevices: null
-        );
-
-        if (VkResult.VK_SUCCESS != result) { goto error; }
-
-        physicalDevices = new VkPhysicalDevice[count];
-
-        fixed (VkPhysicalDevice* pPhysicalDevices = physicalDevices) {
-            result = vkEnumeratePhysicalDevices(
-                instance: instance,
-                pPhysicalDeviceCount: &count,
-                pPhysicalDevices: pPhysicalDevices
-            );
-        }
-
-        if (VkResult.VK_SUCCESS != result) { goto error; }
-
-        return result;
-    error:
-        physicalDevices = [];
-
-        return result;
-    }
 
     public unsafe static SafeVulkanInstanceHandle Create(
         uint apiVersion,
@@ -122,11 +36,11 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
         out VkResult result,
         nint pAllocator = 0
     ) {
-        result = GetInstanceExtensionProperties(properties: out var supportedExtensionProperties);
+        result = GetExtensionProperties(properties: out var supportedExtensionProperties);
 
         if (VkResult.VK_SUCCESS != result) { goto error; }
 
-        result = GetInstanceLayerProperties(properties: out var supportedLayerProperties);
+        result = GetLayerProperties(properties: out var supportedLayerProperties);
 
         if (VkResult.VK_SUCCESS != result) { goto error; }
 
@@ -253,6 +167,60 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
             pAllocator: default
         );
     }
+    public unsafe static VkResult GetExtensionProperties(out VkExtensionProperties[] properties) {
+        var count = uint.MinValue;
+        var result = vkEnumerateInstanceExtensionProperties(
+            pLayerName: null,
+            pProperties: null,
+            pPropertyCount: &count
+        );
+
+        if (VkResult.VK_SUCCESS != result) { goto error; }
+
+        properties = new VkExtensionProperties[count];
+
+        fixed (VkExtensionProperties* pProperties = properties) {
+            result = vkEnumerateInstanceExtensionProperties(
+                pLayerName: default,
+                pProperties: pProperties,
+                pPropertyCount: &count
+            );
+        }
+
+        if (VkResult.VK_SUCCESS != result) { goto error; }
+
+        return result;
+    error:
+        properties = [];
+
+        return result;
+    }
+    public unsafe static VkResult GetLayerProperties(out VkLayerProperties[] properties) {
+        var count = uint.MinValue;
+        var result = vkEnumerateInstanceLayerProperties(
+            pProperties: null,
+            pPropertyCount: &count
+        );
+
+        if (VkResult.VK_SUCCESS != result) { goto error; }
+
+        properties = new VkLayerProperties[count];
+
+        fixed (VkLayerProperties* pProperties = properties) {
+            result = vkEnumerateInstanceLayerProperties(
+                pProperties: pProperties,
+                pPropertyCount: &count
+            );
+        }
+
+        if (VkResult.VK_SUCCESS != result) { goto error; }
+
+        return result;
+    error:
+        properties = [];
+
+        return result;
+    }
 
     private readonly nint m_pAllocator;
     private readonly VkInstanceManualImports m_instanceManualImports;
@@ -277,7 +245,25 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
         return true;
     }
 
-    public unsafe SafeVulkanSurfaceHandle CreateSurface(
+    public unsafe SafeVulkanSurfaceHandle CreateAndroidSurface(
+        nint pAllocator,
+        out VkResult result,
+        void* window
+    ) =>
+        SafeVulkanSurfaceHandle.Create(
+            createInfo: new VkAndroidSurfaceCreateInfoKHR {
+                flags = uint.MinValue,
+                pNext = null,
+                sType = VkStructureType.VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR,
+                window = window,
+            },
+            createMethod: m_instanceManualImports.vkCreateAndroidSurfaceKHR,
+            destroyMethod: vkDestroySurfaceKHR,
+            instanceHandle: this,
+            pAllocator: pAllocator,
+            result: out result
+        );
+    public unsafe SafeVulkanSurfaceHandle CreateHeadlessSurface(
         nint pAllocator,
         out VkResult result
     ) =>
@@ -293,7 +279,7 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
             pAllocator: pAllocator,
             result: out result
         );
-    public unsafe SafeVulkanSurfaceHandle CreateSurface(
+    public unsafe SafeVulkanSurfaceHandle CreateWaylandSurface(
         void* display,
         nint pAllocator,
         out VkResult result,
@@ -373,21 +359,91 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
             pAllocator: pAllocator,
             result: out result
         );
-    public VkResult GetPhysicalDevices(out VkPhysicalDevice[] physicalDevices) {
+    public unsafe VkResult GetDefaultPhysicalGraphicsDevice(
+        out VkPhysicalDevice physicalDevice,
+        VkPhysicalDeviceType preferredDeviceType,
+        out uint queueFamilyIndex
+    ) {
         var addRefSuccessful = false;
         var result = VkResult.VK_ERROR_UNKNOWN;
+
+        physicalDevice = default;
+        queueFamilyIndex = uint.MinValue;
 
         DangerousAddRef(success: ref addRefSuccessful);
 
         try {
             if (addRefSuccessful) {
-                result = GetPhysicalDevices(
-                    instance: ((VkInstance)handle),
-                    physicalDevices: out physicalDevices
-                );
-            }
-            else {
-                physicalDevices = [];
+                result = ((VkInstance)handle).GetPhysicalDevices(out var physicalDevices);
+
+                var count = physicalDevices.Length;
+
+                if (uint.MinValue < count) {
+                    VkPhysicalDevice? cpuPhysicalDevice = null;
+                    VkPhysicalDevice? discretePhysicalDevice = null;
+                    VkPhysicalDevice? integratedPhysicalDevice = null;
+                    VkPhysicalDevice? virtualPhysicalDevice = null;
+
+                    for (var i = uint.MinValue; (i < count); ++i) {
+                        var deviceProperties = new VkPhysicalDeviceProperties2 {
+                            pNext = null,
+                            sType = VkStructureType.VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+                        };
+
+                        physicalDevice = physicalDevices[i];
+
+                        vkGetPhysicalDeviceProperties2(
+                            physicalDevice: physicalDevice,
+                            pProperties: &deviceProperties
+                        );
+
+                        var deviceType = deviceProperties.properties.deviceType;
+
+                        if (preferredDeviceType == deviceType) {
+                            cpuPhysicalDevice = null;
+                            discretePhysicalDevice = null;
+                            integratedPhysicalDevice = null;
+                            virtualPhysicalDevice = null;
+
+                            break;
+                        }
+                        else if ((cpuPhysicalDevice is null) && (VkPhysicalDeviceType.VK_PHYSICAL_DEVICE_TYPE_CPU == deviceType)) {
+                            cpuPhysicalDevice = physicalDevice;
+                        }
+                        else if ((discretePhysicalDevice is null) && (VkPhysicalDeviceType.VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU == deviceType)) {
+                            discretePhysicalDevice = physicalDevice;
+                        }
+                        else if ((integratedPhysicalDevice is null) && (VkPhysicalDeviceType.VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU == deviceType)) {
+                            integratedPhysicalDevice = physicalDevice;
+                        }
+                        else if ((virtualPhysicalDevice is null) && (VkPhysicalDeviceType.VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU == deviceType)) {
+                            virtualPhysicalDevice = physicalDevice;
+                        }
+                    }
+
+                    if (discretePhysicalDevice.HasValue) {
+                        physicalDevice = discretePhysicalDevice.Value;
+                    }
+                    else if (integratedPhysicalDevice.HasValue) {
+                        physicalDevice = integratedPhysicalDevice.Value;
+                    }
+                    else if (cpuPhysicalDevice.HasValue) {
+                        physicalDevice = cpuPhysicalDevice.Value;
+                    }
+                    else if (virtualPhysicalDevice.HasValue) {
+                        physicalDevice = virtualPhysicalDevice.Value;
+                    }
+
+                    var queueFamilyProperties = physicalDevice.GetQueueFamilyProperties();
+
+                    for (var i = uint.MinValue; (i < queueFamilyProperties.Length); ++i) {
+                        if (queueFamilyProperties[i].queueFamilyProperties.queueFlags.HasFlag(flag: VkQueueFlags.VK_QUEUE_GRAPHICS_BIT)) {
+                            queueFamilyIndex = i;
+
+                            break;
+                        }
+                    }
+                }
             }
         }
         finally {

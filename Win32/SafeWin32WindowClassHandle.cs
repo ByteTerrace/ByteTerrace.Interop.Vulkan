@@ -1,7 +1,5 @@
-﻿using ByteTerrace.Interop.Vulkan;
-using Microsoft.Win32.SafeHandles;
+﻿using Microsoft.Win32.SafeHandles;
 using System.Runtime.InteropServices;
-using System.Runtime.Versioning;
 using Windows.Win32.Foundation;
 using Windows.Win32.UI.WindowsAndMessaging;
 
@@ -10,81 +8,105 @@ namespace Windows.Win32;
 public sealed class SafeWin32WindowClassHandle : SafeHandleZeroOrMinusOneIsInvalid
 {
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-    private delegate LRESULT DefWindowProcDelegate(HWND hWnd, uint Msg, WPARAM wParam, LPARAM lParam);
+    private delegate LRESULT WindowProcedureDelegate(HWND hWnd, uint Msg, WPARAM wParam, LPARAM lParam);
 
-    [SupportedOSPlatform("windows5.0")]
-    private static readonly DefWindowProcDelegate DefWindowProc = (hWnd, Msg, wParam, lParam) => {
-        return Msg switch {
-            _ => PInvoke.DefWindowProc(
+    public unsafe static SafeWin32WindowClassHandle Create(
+        string className,
+        SafeHandle instance,
+        Action<HWND, uint, WPARAM, LPARAM> windowProcedure
+    ) {
+        ArgumentNullException.ThrowIfNull(argument: instance, paramName: nameof(instance));
+
+        if (string.IsNullOrEmpty(value: className)) {
+            throw new ArgumentNullException(paramName: nameof(className));
+        }
+
+        if (!OperatingSystem.IsWindowsVersionAtLeast(build: 0, major: 5, minor: 0)) {
+            throw new PlatformNotSupportedException();
+        }
+
+        var instanceAddRef = false;
+        var windowProcedureDelegate = ((WindowProcedureDelegate)((hWnd, Msg, wParam, lParam) => {
+            windowProcedure(
+                hWnd,
+                Msg,
+                wParam,
+                lParam
+            );
+
+#pragma warning disable CA1416
+            return PInvoke.DefWindowProc(
                 hWnd: hWnd,
                 lParam: lParam,
                 Msg: Msg,
                 wParam: wParam
-            ),
-        };
-    };
+            );
+#pragma warning restore CA1416
+        }));
+        var windowProcedureGcHandle = GCHandle.Alloc(value: windowProcedureDelegate);
 
-    public unsafe static SafeWin32WindowClassHandle Create(
-        SafeUnmanagedMemoryHandle classNameHandle,
-        nint hInstance
-    ) {
-        var windowClassSafeHandle = new SafeWin32WindowClassHandle(
-            classNameHandle: classNameHandle,
-            hInstance: hInstance
-        );
+        try {
+            instance.DangerousAddRef(success: ref instanceAddRef);
 
-        if (OperatingSystem.IsWindowsVersionAtLeast(
-            build: 0,
-            major: 5,
-            minor: 0
-        )) {
-            var addRefCountSuccess = false;
-
-            classNameHandle.DangerousAddRef(success: ref addRefCountSuccess);
-
-            if (addRefCountSuccess) {
-                var windowClassCreateInfo = new WNDCLASSEXW {
+            fixed (char* pClassName = className) {
+                var windowClassSafeHandle = new SafeWin32WindowClassHandle(
+                    className: className,
+                    instance: instance
+                );
+                var windowClassHandle = PInvoke.RegisterClassEx(param0: new WNDCLASSEXW {
                     cbSize = (uint)sizeof(WNDCLASSEXW),
-                    hInstance = (HINSTANCE)hInstance,
-                    lpfnWndProc = (delegate* unmanaged[Stdcall]<HWND, uint, WPARAM, LPARAM, LRESULT>)Marshal.GetFunctionPointerForDelegate(d: DefWindowProc),
-                    lpszClassName = (char*)classNameHandle.DangerousGetHandle(),
-                };
-                var windowClassHandle = PInvoke.RegisterClassEx(param0: &windowClassCreateInfo);
+                    hInstance = ((HINSTANCE)instance.DangerousGetHandle()),
+                    lpfnWndProc = ((delegate* unmanaged[Stdcall]<HWND, uint, WPARAM, LPARAM, LRESULT>)Marshal.GetFunctionPointerForDelegate(d: windowProcedureDelegate)),
+                    lpszClassName = pClassName,
+                });
 
-                if (0 != windowClassHandle) {
-                    windowClassSafeHandle.SetHandle(handle: windowClassHandle);
+                if (ushort.MinValue == windowClassHandle) {
+                    throw new ExternalException(message: Marshal.GetLastPInvokeErrorMessage());
                 }
                 else {
-                    classNameHandle.DangerousRelease();
+                    windowClassSafeHandle.SetHandle(handle: windowClassHandle);
                 }
+
+                return windowClassSafeHandle;
             }
         }
+        catch {
+            if (instanceAddRef) {
+                instance.DangerousRelease();
+            }
 
-        return windowClassSafeHandle;
+            throw;
+        }
+        finally {
+            windowProcedureGcHandle.Free();
+        }
     }
 
-    private readonly SafeUnmanagedMemoryHandle m_classNameHandle;
-    private readonly nint m_hInstance;
+    private readonly string m_className;
+    private readonly SafeHandle m_instance;
 
     private SafeWin32WindowClassHandle(
-        SafeUnmanagedMemoryHandle classNameHandle,
-        nint hInstance
+        string className,
+        SafeHandle instance
     ) : base(ownsHandle: true) {
-        m_classNameHandle = classNameHandle;
-        m_hInstance = hInstance;
+        m_className = className;
+        m_instance = instance;
     }
 
     protected unsafe override bool ReleaseHandle() {
 #pragma warning disable CA1416
-        var unregisterClassResult = PInvoke.UnregisterClass(
-            hInstance: (HINSTANCE)m_hInstance,
-            lpClassName: (char*)m_classNameHandle.DangerousGetHandle()
+        var @className = m_className;
+        var instance = m_instance;
+        var result = PInvoke.UnregisterClass(
+            hInstance: instance,
+            lpClassName: @className
         );
 
-        m_classNameHandle.DangerousRelease();
+        if ((instance is not null) && !instance.IsClosed && !instance.IsInvalid) {
+            instance.DangerousRelease();
+        }
 
-        return unregisterClassResult;
+        return result;
 #pragma warning restore CA1416
     }
 }
-

@@ -13,7 +13,7 @@ public sealed class SafeVulkanPipelineHandle : SafeHandleZeroOrMinusOneIsInvalid
         out VkResult result,
         nint pAllocator = 0
     ) {
-        result = VkResult.VK_ERROR_INITIALIZATION_FAILED;
+        result = VkResult.VK_ERROR_UNKNOWN;
 
         var addRefCountSuccess = false;
         var pipelineHandle = new SafeVulkanPipelineHandle(

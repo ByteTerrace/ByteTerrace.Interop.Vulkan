@@ -3,7 +3,6 @@ using System.Diagnostics;
 using System.IO.MemoryMappedFiles;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Text;
 using TerraFX.Interop.Vulkan;
 using TerraFX.Interop.Xlib;
 using WaylandSharp;
@@ -97,12 +96,13 @@ using var vulkanInstanceHandle = SafeVulkanInstanceHandle.Create(
     result: out vulkanResult
 );
 
-var vulkanPhysicalDevice = vulkanInstanceHandle.GetDefaultPhysicalGraphicsDeviceQueue(
+vulkanResult = vulkanInstanceHandle.GetDefaultPhysicalGraphicsDevice(
+    physicalDevice: out var vulkanPhysicalDevice,
     preferredDeviceType: VkPhysicalDeviceType.VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU,
     queueFamilyIndex: out var vulkanPhysicalGraphicsDeviceQueueFamilyIndex
 );
 
-using var vulkanLogicalGraphicsDeviceHandle = vulkanPhysicalDevice.GetDefaultLogicalGraphicsDeviceQueue(
+using var vulkanLogicalGraphicsDeviceHandle = vulkanPhysicalDevice.GetDefaultLogicalGraphicsDevice(
     pAllocator: vulkanAllocationCallbacksPointer,
     queue: out var vulkanLogicalDeviceQueue,
     queueFamilyIndex: vulkanPhysicalGraphicsDeviceQueueFamilyIndex,
@@ -111,7 +111,8 @@ using var vulkanLogicalGraphicsDeviceHandle = vulkanPhysicalDevice.GetDefaultLog
         "VK_KHR_portability_subset",
 #endif
         "VK_KHR_swapchain",
-    ]
+    ],
+    result: out vulkanResult
 );
 
 static uint GetDisplayType() {
@@ -138,7 +139,6 @@ static uint GetDisplayType() {
 var dependency0Handle = ((SafeHandle?)null);
 var dependency1Handle = ((SafeHandle?)null);
 var displayType = GetDisplayType();
-var processBaseAddress = Process.GetCurrentProcess().MainModule!.BaseAddress;
 var vulkanImageExtent = new VkExtent2D {
     height = 600,
     width = 800,
@@ -203,7 +203,7 @@ try {
                 ) ? VkResult.VK_SUCCESS : VkResult.VK_ERROR_FORMAT_NOT_SUPPORTED));
 
                 if (VkResult.VK_SUCCESS == vulkanResult) {
-                    vulkanSurfaceHandle = vulkanInstanceHandle.CreateSurface(
+                    vulkanSurfaceHandle = vulkanInstanceHandle.CreateWaylandSurface(
                         display: ((void*)wlDisplay.RawPointer),
                         pAllocator: vulkanAllocationCallbacksPointer,
                         result: out vulkanResult,
@@ -308,19 +308,21 @@ try {
             }
             break;
         case 3U:
-            dependency1Handle = SafeUnmanagedMemoryHandle.Create(
-                encoding: Encoding.Unicode,
-                value: "HELLO_TRIANGLE"
-            );
-            dependency0Handle = SafeWin32WindowClassHandle.Create(
-                classNameHandle: ((SafeUnmanagedMemoryHandle)dependency1Handle),
-                hInstance: processBaseAddress
-            );
+            var processSafeHandle = Process.GetCurrentProcess().SafeHandle;
+
+            unsafe {
+                dependency0Handle = SafeWin32WindowClassHandle.Create(
+                    className: "HELLO_TRIANGLE",
+                    instance: processSafeHandle,
+                    windowProcedure: (_, _, _, _) => { }
+                );
+            }
+
             windowHandle = SafeWin32WindowHandle.Create(
-                classHandle: ((SafeWin32WindowClassHandle)dependency0Handle),
+                @class: ((SafeWin32WindowClassHandle)dependency0Handle),
                 extendedStyle: WINDOW_EX_STYLE.WS_EX_LEFT,
                 height: ((int)vulkanImageExtent.height),
-                hInstance: processBaseAddress,
+                instance: processSafeHandle,
                 style: WINDOW_STYLE.WS_OVERLAPPED,
                 width: ((int)vulkanImageExtent.width),
                 windowName: "HELLO_TRIANGLE",
@@ -336,7 +338,7 @@ try {
             if (VkResult.VK_SUCCESS == vulkanResult) {
                 unsafe {
                     vulkanSurfaceHandle = vulkanInstanceHandle.CreateWin32Surface(
-                        hinstance: ((void*)processBaseAddress),
+                        hinstance: ((void*)processSafeHandle.DangerousGetHandle()),
                         hwnd: ((void*)windowHandle.DangerousGetHandle()),
                         pAllocator: vulkanAllocationCallbacksPointer,
                         result: out vulkanResult
@@ -345,7 +347,7 @@ try {
             }
             break;
         default:
-            vulkanSurfaceHandle = vulkanInstanceHandle.CreateSurface(
+            vulkanSurfaceHandle = vulkanInstanceHandle.CreateHeadlessSurface(
                 pAllocator: vulkanAllocationCallbacksPointer,
                 result: out vulkanResult
             );
@@ -440,9 +442,8 @@ try {
 
     var vulkanSwapchain = ((VkSwapchainKHR)vulkanSwapchainHandle.DangerousGetHandle());
 
-    using var vulkanSwapchainImagesHandle = vulkanDevice.GetSwapchainImages(
-        count: out var vulkanSwapchainImageCount,
-        result: out vulkanResult,
+    vulkanResult = vulkanDevice.GetSwapchainImages(
+        images: out var vulkanSwapchainImages,
         swapchain: vulkanSwapchain
     );
 
@@ -552,7 +553,6 @@ try {
         );
 
         var vulkanRenderPass = ((VkRenderPass)vulkanRenderPassHandle.DangerousGetHandle());
-        var vulkanSwapchainImagesPointer = ((VkImage*)vulkanSwapchainImagesHandle.DangerousGetHandle());
 
         using var vulkanImageViewPrimaryHandle = vulkanLogicalGraphicsDeviceHandle.CreateHandle(
             createInfo: new VkImageViewCreateInfo {
@@ -564,7 +564,7 @@ try {
                 },
                 flags = uint.MinValue,
                 format = vulkanImageFormat,
-                image = vulkanSwapchainImagesPointer[0],
+                image = vulkanSwapchainImages[0],
                 pNext = null,
                 sType = VkStructureType.VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
                 subresourceRange = new() {
@@ -589,7 +589,7 @@ try {
                 },
                 flags = uint.MinValue,
                 format = vulkanImageFormat,
-                image = vulkanSwapchainImagesPointer[1],
+                image = vulkanSwapchainImages[1],
                 pNext = null,
                 sType = VkStructureType.VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
                 subresourceRange = new() {
