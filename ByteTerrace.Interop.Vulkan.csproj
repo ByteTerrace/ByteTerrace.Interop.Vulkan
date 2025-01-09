@@ -1,0 +1,35 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <DisableRuntimeMarshalling>false</DisableRuntimeMarshalling>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <Nullable>enable</Nullable>
+        <OutputType>Exe</OutputType>
+        <PublishAot>false</PublishAot>
+        <PublishTrimmed>false</PublishTrimmed>
+        <TargetFramework>net9.0</TargetFramework>
+    </PropertyGroup>
+    <ItemGroup>
+        <Content Include="Shaders\frag.spv">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+        <Content Include="Shaders\vert.spv">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+    </ItemGroup>
+    <ItemGroup>
+        <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="WaylandProtocol" />
+        <AdditionalFiles Include="wayland.xml" WaylandProtocol="client" />
+        <AdditionalFiles Include="xdg-shell.xml" WaylandProtocol="client" />
+    </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Windows.CsWin32" Version="0.3.106">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="TerraFX.Interop.Mimalloc" Version="1.6.7.1" />
+        <PackageReference Include="TerraFX.Interop.Vulkan" Version="1.3.268" />
+        <PackageReference Include="TerraFX.Interop.Xlib" Version="6.4.0" />
+        <PackageReference Include="WaylandSharp" Version="0.2.1" />
+    </ItemGroup>
+</Project>

@@ -1,0 +1,8 @@
+CreateWindowExW
+DefWindowProcW
+DestroyWindow
+GetClassInfoExW
+GetConsoleWindow
+RegisterClassExW
+ShowWindow
+UnregisterClassW
