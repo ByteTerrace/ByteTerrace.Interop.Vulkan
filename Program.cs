@@ -96,11 +96,15 @@ using var vulkanInstanceHandle = SafeVulkanInstanceHandle.Create(
     result: out vulkanResult
 );
 
+if (VkResult.VK_SUCCESS != vulkanResult) { return; }
+
 vulkanResult = vulkanInstanceHandle.GetDefaultPhysicalGraphicsDevice(
     physicalDevice: out var vulkanPhysicalDevice,
     preferredDeviceType: VkPhysicalDeviceType.VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU,
     queueFamilyIndex: out var vulkanPhysicalGraphicsDeviceQueueFamilyIndex
 );
+
+if (VkResult.VK_SUCCESS != vulkanResult) { return; }
 
 using var vulkanLogicalGraphicsDeviceHandle = vulkanPhysicalDevice.GetDefaultLogicalGraphicsDevice(
     pAllocator: vulkanAllocationCallbacksPointer,
@@ -114,6 +118,8 @@ using var vulkanLogicalGraphicsDeviceHandle = vulkanPhysicalDevice.GetDefaultLog
     ],
     result: out vulkanResult
 );
+
+if (VkResult.VK_SUCCESS != vulkanResult) { return; }
 
 static uint GetDisplayType() {
     var displayType = uint.MaxValue;
@@ -397,16 +403,22 @@ try {
     };
     var vulkanPresentMode = VkPresentModeKHR.VK_PRESENT_MODE_IMMEDIATE_KHR;
 
-    vulkanResult &= vulkanPhysicalDevice.IsImageFormatSupported(
+    vulkanResult = vulkanPhysicalDevice.IsImageFormatSupported(
         imageFormat: vulkanImageFormat,
         imageUsageFlags: vulkanImageUsageFlags
     );
-    vulkanResult &= vulkanPhysicalDevice.IsSurfaceFormatSupported(
+
+    if (VkResult.VK_SUCCESS != vulkanResult) { return; }
+
+    vulkanResult = vulkanPhysicalDevice.IsSurfaceFormatSupported(
         imageColorSpace: vulkanImageColorSpace,
         imageFormat: vulkanImageFormat,
         surface: vulkanSurface
     );
-    vulkanResult &= vulkanPhysicalDevice.IsSurfacePresentModeSupported(
+
+    if (VkResult.VK_SUCCESS != vulkanResult) { return; }
+
+    vulkanResult = vulkanPhysicalDevice.IsSurfacePresentModeSupported(
         presentMode: vulkanPresentMode,
         surface: vulkanSurface
     );
@@ -552,6 +564,8 @@ try {
             result: out vulkanResult
         );
 
+        if (VkResult.VK_SUCCESS != vulkanResult) { return; }
+
         var vulkanRenderPass = ((VkRenderPass)vulkanRenderPassHandle.DangerousGetHandle());
 
         using var vulkanImageViewPrimaryHandle = vulkanLogicalGraphicsDeviceHandle.CreateHandle(
@@ -579,6 +593,9 @@ try {
             pAllocator: vulkanAllocationCallbacksPointer,
             result: out vulkanResult
         );
+
+        if (VkResult.VK_SUCCESS != vulkanResult) { return; }
+
         using var vulkanImageViewSecondaryHandle = vulkanLogicalGraphicsDeviceHandle.CreateHandle(
             createInfo: new VkImageViewCreateInfo {
                 components = new() {
@@ -605,6 +622,8 @@ try {
             result: out vulkanResult
         );
 
+        if (VkResult.VK_SUCCESS != vulkanResult) { return; }
+
         var vulkanImageViewPrimary = ((VkImageView)vulkanImageViewPrimaryHandle.DangerousGetHandle());
         var vulkanImageViewSecondary = ((VkImageView)vulkanImageViewSecondaryHandle.DangerousGetHandle());
 
@@ -623,6 +642,9 @@ try {
             pAllocator: vulkanAllocationCallbacksPointer,
             result: out vulkanResult
         );
+
+        if (VkResult.VK_SUCCESS != vulkanResult) { return; }
+
         using var vulkanFrameBufferSecondary = vulkanLogicalGraphicsDeviceHandle.CreateHandle(
             createInfo: new VkFramebufferCreateInfo {
                 attachmentCount = 1U,
@@ -638,6 +660,8 @@ try {
             pAllocator: vulkanAllocationCallbacksPointer,
             result: out vulkanResult
         );
+
+        if (VkResult.VK_SUCCESS != vulkanResult) { return; }
 
         using var shaderFragFileStream = new FileStream(
             options: new() {
@@ -701,6 +725,9 @@ try {
             pAllocator: vulkanAllocationCallbacksPointer,
             result: out vulkanResult
         );
+
+        if (VkResult.VK_SUCCESS != vulkanResult) { return; }
+
         using var vulkanShaderModuleVertHandle = vulkanLogicalGraphicsDeviceHandle.CreateHandle(
             createInfo: new VkShaderModuleCreateInfo {
                 codeSize = ((uint)shaderVertMemoryMappedViewAccessor.Capacity),
@@ -712,6 +739,9 @@ try {
             pAllocator: vulkanAllocationCallbacksPointer,
             result: out vulkanResult
         );
+
+        if (VkResult.VK_SUCCESS != vulkanResult) { return; }
+
         using var vulkanPipelineCacheHandle = vulkanLogicalGraphicsDeviceHandle.CreateHandle(
             createInfo: new VkPipelineCacheCreateInfo {
                 flags = uint.MinValue,
@@ -723,6 +753,9 @@ try {
             pAllocator: vulkanAllocationCallbacksPointer,
             result: out vulkanResult
         );
+
+        if (VkResult.VK_SUCCESS != vulkanResult) { return; }
+
         using var vulkanPipelineLayoutHandle = vulkanLogicalGraphicsDeviceHandle.CreateHandle(
             createInfo: new VkPipelineLayoutCreateInfo {
                 flags = uint.MinValue,
@@ -736,6 +769,8 @@ try {
             pAllocator: vulkanAllocationCallbacksPointer,
             result: out vulkanResult
         );
+
+        if (VkResult.VK_SUCCESS != vulkanResult) { return; }
 
         var vulkanPipelineColorBlendAttachmentState = new VkPipelineColorBlendAttachmentState {
             alphaBlendOp = VkBlendOp.VK_BLEND_OP_ADD,
@@ -888,6 +923,9 @@ try {
             pipelineCache: ((VkPipelineCache)vulkanPipelineCacheHandle.DangerousGetHandle()),
             result: out vulkanResult
         );
+
+        if (VkResult.VK_SUCCESS != vulkanResult) { return; }
+
         using var vulkanCommandPoolHandle = vulkanLogicalGraphicsDeviceHandle.CreateHandle(
             createInfo: new VkCommandPoolCreateInfo {
                 flags = VkCommandPoolCreateFlags.VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
@@ -898,6 +936,8 @@ try {
             pAllocator: vulkanAllocationCallbacksPointer,
             result: out vulkanResult
         );
+
+        if (VkResult.VK_SUCCESS != vulkanResult) { return; }
 
         var vulkanCommandPool = ((VkCommandPool)vulkanCommandPoolHandle.DangerousGetHandle());
         var vulkanCommandBufferAllocateInfo = new VkCommandBufferAllocateInfo {
@@ -931,11 +971,17 @@ try {
                 timeout: ulong.MaxValue,
                 waitAll: VK_TRUE
             );
+
+            if (VkResult.VK_SUCCESS != vulkanResult) { return; }
+
             vulkanResult = vkResetFences(
                 device: vulkanDevice,
                 fenceCount: 1U,
                 pFences: &vulkanFenceInFlight
             );
+
+            if (VkResult.VK_SUCCESS != vulkanResult) { return; }
+
             vulkanResult = vkAcquireNextImageKHR(
                 device: vulkanDevice,
                 fence: VK_NULL_HANDLE,
@@ -944,10 +990,15 @@ try {
                 swapchain: vulkanSwapchain,
                 timeout: ulong.MaxValue
             );
+
+            if (VkResult.VK_SUCCESS != vulkanResult) { return; }
+
             vulkanResult = vkResetCommandBuffer(
                 commandBuffer: vulkanCommandBuffer,
                 flags: uint.MinValue
             );
+
+            if (VkResult.VK_SUCCESS != vulkanResult) { return; }
 
             var commandBufferBeginInfo = new VkCommandBufferBeginInfo {
                 flags = uint.MinValue,
@@ -1058,6 +1109,8 @@ try {
                         submitCount: 1U
                     );
 
+                    if (VkResult.VK_SUCCESS != vulkanResult) { return; }
+
                     var vulkanPresentInfo = new VkPresentInfoKHR {
                         pImageIndices = &vulkanImageIndex,
                         pNext = null,
@@ -1073,7 +1126,12 @@ try {
                         queue: vulkanLogicalDeviceQueue,
                         pPresentInfo: &vulkanPresentInfo
                     );
+
+                    if (VkResult.VK_SUCCESS != vulkanResult) { return; }
+
                     vulkanResult = vkDeviceWaitIdle(device: vulkanDevice);
+
+                    if (VkResult.VK_SUCCESS != vulkanResult) { return; }
 
                     Thread.Sleep(millisecondsTimeout: 3000);
                 }
