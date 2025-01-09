@@ -98,8 +98,7 @@ using var vulkanInstanceHandle = SafeVulkanInstanceHandle.Create(
     result: out vulkanResult
 );
 
-var vulkanInstance = ((VkInstance)vulkanInstanceHandle.DangerousGetHandle());
-var vulkanPhysicalDevice = vulkanInstance.GetDefaultPhysicalGraphicsDeviceQueue(
+var vulkanPhysicalDevice = vulkanInstanceHandle.GetDefaultPhysicalGraphicsDeviceQueue(
     preferredDeviceType: VkPhysicalDeviceType.VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU,
     queueFamilyIndex: out var vulkanPhysicalGraphicsDeviceQueueFamilyIndex
 );
@@ -235,15 +234,15 @@ try {
                 _ = Interop.Flush(connection: xcbConnection);
 
                 vulkanResult = ((VK_TRUE == vulkanInstanceHandle.GetPhysicalDeviceXcbPresentationSupport(
-                    connection: xcbConnection,
+                    connection: ((void*)(IntPtr)xcbConnection),
                     physicalDevice: vulkanPhysicalDevice,
                     queueFamilyIndex: vulkanPhysicalGraphicsDeviceQueueFamilyIndex,
                     visualId: xcbScreen.root_visual
                 ) ? VkResult.VK_SUCCESS : VkResult.VK_ERROR_FORMAT_NOT_SUPPORTED));
 
                 if (VkResult.VK_SUCCESS == vulkanResult) {
-                    vulkanSurfaceHandle = vulkanInstanceHandle.CreateSurface(
-                        connection: xcbConnection,
+                    vulkanSurfaceHandle = vulkanInstanceHandle.CreateXcbSurface(
+                        connection: ((void*)(IntPtr)xcbConnection),
                         pAllocator: vulkanAllocationCallbacksPointer,
                         result: out vulkanResult,
                         window: windowId
@@ -284,14 +283,14 @@ try {
                     );
 
                     vulkanResult = ((VK_TRUE == vulkanInstanceHandle.GetPhysicalDeviceXlibPresentationSupport(
-                        displayHandle: ((IntPtr)x11Display),
+                        displayHandle: ((void*)(IntPtr)x11Display),
                         physicalDevice: vulkanPhysicalDevice,
                         queueFamilyIndex: vulkanPhysicalGraphicsDeviceQueueFamilyIndex,
                         visualId: (*x11WindowAttributes.visual).visualid
                     ) ? VkResult.VK_SUCCESS : VkResult.VK_ERROR_FORMAT_NOT_SUPPORTED));
 
                     if (VkResult.VK_SUCCESS == vulkanResult) {
-                        vulkanSurfaceHandle = vulkanInstanceHandle.CreateSurface(
+                        vulkanSurfaceHandle = vulkanInstanceHandle.CreateXlibSurface(
                             pAllocator: vulkanAllocationCallbacksPointer,
                             result: out vulkanResult,
                             display: x11Display,
@@ -328,12 +327,14 @@ try {
             ) ? VkResult.VK_SUCCESS : VkResult.VK_ERROR_FORMAT_NOT_SUPPORTED));
 
             if (VkResult.VK_SUCCESS == vulkanResult) {
-                vulkanSurfaceHandle = vulkanInstanceHandle.CreateSurface(
-                    pAllocator: vulkanAllocationCallbacksPointer,
-                    result: out vulkanResult,
-                    win32InstanceHandle: ((HINSTANCE)processBaseAddress),
-                    win32WindowHandle: ((HWND)windowHandle.DangerousGetHandle())
-                );
+                unsafe {
+                    vulkanSurfaceHandle = vulkanInstanceHandle.CreateWin32Surface(
+                        hinstance: ((void*)processBaseAddress),
+                        hwnd: ((void*)windowHandle.DangerousGetHandle()),
+                        pAllocator: vulkanAllocationCallbacksPointer,
+                        result: out vulkanResult
+                    );
+                }
             }
             break;
         default:

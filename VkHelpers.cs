@@ -139,22 +139,18 @@ public static class VkHelpers
         return logicalDeviceHandle;
     }
     public unsafe static VkPhysicalDevice GetDefaultPhysicalGraphicsDeviceQueue(
-        this VkInstance instance,
+        this SafeVulkanInstanceHandle instanceHandle,
         VkPhysicalDeviceType preferredDeviceType,
         out uint queueFamilyIndex
     ) {
-        using var physicalDevicesHandle = instance.GetPhysicalDevices(
-            out var physicalDeviceCount,
-            out var result
-        );
+        _ = instanceHandle.GetPhysicalDevices(out var physicalDevices);
 
         var physicalDevice = default(VkPhysicalDevice);
+        var physicalDeviceCount = physicalDevices.Length;
 
         queueFamilyIndex = uint.MinValue;
 
         if (uint.MinValue < physicalDeviceCount) {
-            var physicalDevicesPointer = ((VkPhysicalDevice*)physicalDevicesHandle.DangerousGetHandle());
-
             VkPhysicalDevice? cpuPhysicalDevice = null;
             VkPhysicalDevice? discretePhysicalDevice = null;
             VkPhysicalDevice? integratedPhysicalDevice = null;
@@ -166,7 +162,7 @@ public static class VkHelpers
                     sType = VkStructureType.VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
                 };
 
-                physicalDevice = physicalDevicesPointer[i];
+                physicalDevice = physicalDevices[i];
 
                 vkGetPhysicalDeviceProperties2(
                     physicalDevice: physicalDevice,
@@ -210,12 +206,10 @@ public static class VkHelpers
                 physicalDevice = virtualPhysicalDevice.Value;
             }
 
-            using var propertiesHandle = physicalDevice.GetPhysicalDeviceQueueFamilyProperties(count: out var physicalDeviceQueueFamilyPropertyCount);
+            var queueFamilyProperties = physicalDevice.GetPhysicalDeviceQueueFamilyProperties();
 
-            var propertiesPointer = ((VkQueueFamilyProperties2*)propertiesHandle.DangerousGetHandle());
-
-            for (var j = uint.MinValue; (j < physicalDeviceQueueFamilyPropertyCount); ++j) {
-                var properties = propertiesPointer[j];
+            for (var j = uint.MinValue; (j < queueFamilyProperties.Length); ++j) {
+                var properties = queueFamilyProperties[j];
 
                 if (properties.queueFamilyProperties.queueFlags.HasFlag(flag: VkQueueFlags.VK_QUEUE_GRAPHICS_BIT)) {
                     queueFamilyIndex = j;
@@ -227,70 +221,34 @@ public static class VkHelpers
 
         return physicalDevice;
     }
-    public unsafe static SafeUnmanagedMemoryHandle GetPhysicalDeviceQueueFamilyProperties(
-        this VkPhysicalDevice physicalDevice,
-        out uint count
-    ) {
-        var propertyCount = uint.MinValue;
+    public unsafe static VkQueueFamilyProperties2[] GetPhysicalDeviceQueueFamilyProperties(this VkPhysicalDevice physicalDevice) {
+        var count = uint.MinValue;
+        var properties = Array.Empty<VkQueueFamilyProperties2>();
 
         vkGetPhysicalDeviceQueueFamilyProperties2(
             physicalDevice: physicalDevice,
             pQueueFamilyProperties: null,
-            pQueueFamilyPropertyCount: &propertyCount
+            pQueueFamilyPropertyCount: &count
         );
 
-        var propertiesHandle = SafeUnmanagedMemoryHandle.Create(size: (propertyCount * ((uint)sizeof(VkQueueFamilyProperties2))));
-        var propertiesPointer = ((VkQueueFamilyProperties2*)propertiesHandle.DangerousGetHandle());
+        properties = new VkQueueFamilyProperties2[count];
 
-        for (var i = uint.MinValue; (i < propertyCount); ++i) {
-            propertiesPointer[i] = new VkQueueFamilyProperties2 {
+        for (var i = uint.MinValue; (i < properties.Length); ++i) {
+            properties[i] = new VkQueueFamilyProperties2 {
                 pNext = null,
                 sType = VkStructureType.VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2,
             };
         }
 
-        vkGetPhysicalDeviceQueueFamilyProperties2(
-            physicalDevice: physicalDevice,
-            pQueueFamilyProperties: propertiesPointer,
-            pQueueFamilyPropertyCount: &propertyCount
-        );
-
-        count = propertyCount;
-
-        return propertiesHandle;
-    }
-    public unsafe static SafeUnmanagedMemoryHandle GetPhysicalDevices(
-        this VkInstance instance,
-        out uint count,
-        out VkResult result
-    ) {
-        var deviceCount = uint.MinValue;
-
-        result = vkEnumeratePhysicalDevices(
-            instance: instance,
-            pPhysicalDeviceCount: &deviceCount,
-            pPhysicalDevices: null
-        );
-
-        if (VkResult.VK_SUCCESS == result) {
-            var devicesHandle = SafeUnmanagedMemoryHandle.Create(size: (deviceCount * ((uint)sizeof(VkPhysicalDevice))));
-
-            result = vkEnumeratePhysicalDevices(
-                instance: instance,
-                pPhysicalDeviceCount: &deviceCount,
-                pPhysicalDevices: ((VkPhysicalDevice*)devicesHandle.DangerousGetHandle())
+        fixed (VkQueueFamilyProperties2* pProperties = properties) {
+            vkGetPhysicalDeviceQueueFamilyProperties2(
+                physicalDevice: physicalDevice,
+                pQueueFamilyProperties: pProperties,
+                pQueueFamilyPropertyCount: &count
             );
-
-            if (VkResult.VK_SUCCESS == result) {
-                count = deviceCount;
-
-                return devicesHandle;
-            }
         }
 
-        count = uint.MinValue;
-
-        return SafeUnmanagedMemoryHandle.Create(size: nuint.MinValue);
+        return properties;
     }
     public unsafe static SafeUnmanagedMemoryHandle GetSwapchainImages(
         this VkDevice device,
@@ -392,67 +350,81 @@ public static class VkHelpers
         VkFormat imageFormat,
         VkSurfaceKHR surface
     ) {
-        var formatCount = uint.MinValue;
-
-        vkGetPhysicalDeviceSurfaceFormatsKHR(
+        var count = uint.MinValue;
+        var result = vkGetPhysicalDeviceSurfaceFormatsKHR(
             physicalDevice: physicalDevice,
-            pSurfaceFormatCount: &formatCount,
+            pSurfaceFormatCount: &count,
             pSurfaceFormats: null,
             surface: surface
         );
 
-        using var formatsHandle = SafeUnmanagedMemoryHandle.Create(size: ((nuint)(formatCount * sizeof(VkSurfaceFormatKHR))));
+        if (VkResult.VK_SUCCESS != result) { goto error; }
 
-        var formatsPointer = ((VkSurfaceFormatKHR*)formatsHandle.DangerousGetHandle());
+        var formats = new VkSurfaceFormatKHR[count];
 
-        vkGetPhysicalDeviceSurfaceFormatsKHR(
-            physicalDevice: physicalDevice,
-            pSurfaceFormatCount: &formatCount,
-            pSurfaceFormats: formatsPointer,
-            surface: surface
-        );
+        fixed (VkSurfaceFormatKHR* pFormats = formats) {
+            result = vkGetPhysicalDeviceSurfaceFormatsKHR(
+                physicalDevice: physicalDevice,
+                pSurfaceFormatCount: &count,
+                pSurfaceFormats: pFormats,
+                surface: surface
+            );
+        }
 
-        for (var i = uint.MinValue; (i < formatCount); ++i) {
-            var format = formatsPointer[i];
+        if (VkResult.VK_SUCCESS != result) { goto error; }
+
+        result = VkResult.VK_ERROR_UNKNOWN;
+
+        for (var i = uint.MinValue; (i < count); ++i) {
+            var format = formats[i];
 
             if ((imageColorSpace == format.colorSpace) && (imageFormat == format.format)) {
-                return VkResult.VK_SUCCESS;
+                result = VkResult.VK_SUCCESS;
+                break;
             }
         }
 
-        return VkResult.VK_ERROR_FORMAT_NOT_SUPPORTED;
+    error:
+        return result;
     }
     public unsafe static VkResult IsSurfacePresentModeSupported(
         this VkPhysicalDevice physicalDevice,
         VkPresentModeKHR presentMode,
         VkSurfaceKHR surface
     ) {
-        var presentModeCount = uint.MinValue;
-
-        vkGetPhysicalDeviceSurfacePresentModesKHR(
+        var count = uint.MinValue;
+        var result = vkGetPhysicalDeviceSurfacePresentModesKHR(
             physicalDevice: physicalDevice,
-            pPresentModeCount: &presentModeCount,
+            pPresentModeCount: &count,
             pPresentModes: null,
             surface: surface
         );
 
-        using var presentModesHandle = SafeUnmanagedMemoryHandle.Create(size: (presentModeCount * sizeof(VkPresentModeKHR)));
+        if (VkResult.VK_SUCCESS != result) { goto error; }
 
-        var presentModesPointer = ((VkPresentModeKHR*)presentModesHandle.DangerousGetHandle());
+        var presentModes = new VkPresentModeKHR[count];
 
-        vkGetPhysicalDeviceSurfacePresentModesKHR(
-            physicalDevice: physicalDevice,
-            pPresentModeCount: &presentModeCount,
-            pPresentModes: presentModesPointer,
-            surface: surface
-        );
+        fixed (VkPresentModeKHR* pPresentModes = presentModes) {
+            result = vkGetPhysicalDeviceSurfacePresentModesKHR(
+                physicalDevice: physicalDevice,
+                pPresentModeCount: &count,
+                pPresentModes: pPresentModes,
+                surface: surface
+            );
+        }
 
-        for (var i = uint.MinValue; (i < presentModeCount); ++i) {
-            if (presentMode == presentModesPointer[i]) {
-                return VkResult.VK_SUCCESS;
+        if (VkResult.VK_SUCCESS != result) { goto error; }
+
+        result = VkResult.VK_ERROR_UNKNOWN;
+
+        for (var i = uint.MinValue; (i < count); ++i) {
+            if (presentMode == presentModes[i]) {
+                result = VkResult.VK_SUCCESS;
+                break;
             }
         }
 
-        return VkResult.VK_ERROR_FORMAT_NOT_SUPPORTED;
+    error:
+        return result;
     }
 }

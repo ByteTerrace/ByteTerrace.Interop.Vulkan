@@ -3,61 +3,112 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using TerraFX.Interop.Vulkan;
-using Windows.Win32.Foundation;
-using XOrg.XCB;
 using static TerraFX.Interop.Vulkan.Vulkan;
 
 namespace ByteTerrace.Interop.Vulkan;
 
 public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
 {
-    private unsafe static SafeUnmanagedMemoryHandle GetSupportedInstanceExtensionProperties(out uint count) {
-        count = uint.MinValue;
+    private static ReadOnlySpan<byte> Utf8vkCreateAndroidSurfaceKHR => "vkCreateAndroidSurfaceKHR\u0000"u8;
+    private static ReadOnlySpan<byte> Utf8vkCreateHeadlessSurfaceEXT => "vkCreateHeadlessSurfaceEXT\u0000"u8;
+    private static ReadOnlySpan<byte> Utf8vkCreateViSurfaceNN => "vkCreateViSurfaceNN\u0000"u8;
+    private static ReadOnlySpan<byte> Utf8vkCreateWaylandSurfaceKHR => "vkCreateWaylandSurfaceKHR\u0000"u8;
+    private static ReadOnlySpan<byte> Utf8vkCreateWin32SurfaceKHR => "vkCreateWin32SurfaceKHR\u0000"u8;
+    private static ReadOnlySpan<byte> Utf8vkCreateXcbSurfaceKHR => "vkCreateXcbSurfaceKHR\u0000"u8;
+    private static ReadOnlySpan<byte> Utf8vkCreateXlibSurfaceKHR => "vkCreateXlibSurfaceKHR\u0000"u8;
+    private static ReadOnlySpan<byte> Utf8vkGetPhysicalDeviceWaylandPresentationSupportKHR => "vkGetPhysicalDeviceWaylandPresentationSupportKHR\u0000"u8;
+    private static ReadOnlySpan<byte> Utf8vkGetPhysicalDeviceWin32PresentationSupportKHR => "vkGetPhysicalDeviceWin32PresentationSupportKHR\u0000"u8;
+    private static ReadOnlySpan<byte> Utf8vkGetPhysicalDeviceXcbPresentationSupportKHR => "vkGetPhysicalDeviceXcbPresentationSupportKHR\u0000"u8;
+    private static ReadOnlySpan<byte> Utf8vkGetPhysicalDeviceXlibPresentationSupportKHR => "vkGetPhysicalDeviceXlibPresentationSupportKHR\u0000"u8;
 
-        var propertyCount = uint.MinValue;
-
-        if (VkResult.VK_SUCCESS == vkEnumerateInstanceExtensionProperties(
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private unsafe static sbyte* DangerousGetUtf8Pointer(ReadOnlySpan<byte> span) =>
+        ((sbyte*)Unsafe.AsPointer(value: ref MemoryMarshal.GetReference(span: span)));
+    private unsafe static VkResult GetInstanceExtensionProperties(out VkExtensionProperties[] properties) {
+        var count = uint.MinValue;
+        var result = vkEnumerateInstanceExtensionProperties(
             pLayerName: null,
             pProperties: null,
-            pPropertyCount: &propertyCount
-        )) {
-            var propertiesHandle = SafeUnmanagedMemoryHandle.Create(size: (propertyCount * ((uint)sizeof(VkExtensionProperties))));
+            pPropertyCount: &count
+        );
 
-            if (VkResult.VK_SUCCESS == vkEnumerateInstanceExtensionProperties(
+        if (VkResult.VK_SUCCESS != result) { goto error; }
+
+        properties = new VkExtensionProperties[count];
+
+        fixed (VkExtensionProperties* pProperties = properties) {
+            result = vkEnumerateInstanceExtensionProperties(
                 pLayerName: default,
-                pProperties: ((VkExtensionProperties*)propertiesHandle.DangerousGetHandle()),
-                pPropertyCount: &propertyCount
-            )) {
-                count = propertyCount;
-
-                return propertiesHandle;
-            }
+                pProperties: pProperties,
+                pPropertyCount: &count
+            );
         }
 
-        return SafeUnmanagedMemoryHandle.Create(size: nuint.MinValue);
+        if (VkResult.VK_SUCCESS != result) { goto error; }
+
+        return result;
+    error:
+        properties = [];
+
+        return result;
     }
-    private unsafe static SafeUnmanagedMemoryHandle GetSupportedInstanceLayerProperties(out uint count) {
-        count = uint.MinValue;
-
-        var propertyCount = uint.MinValue;
-
-        if (VkResult.VK_SUCCESS == vkEnumerateInstanceLayerProperties(
+    private unsafe static VkResult GetInstanceLayerProperties(out VkLayerProperties[] properties) {
+        var array = Array.Empty<VkLayerProperties>();
+        var count = uint.MinValue;
+        var result = vkEnumerateInstanceLayerProperties(
             pProperties: null,
-            pPropertyCount: &propertyCount
-        )) {
-            var propertiesHandle = SafeUnmanagedMemoryHandle.Create(size: (propertyCount * ((uint)sizeof(VkLayerProperties))));
+            pPropertyCount: &count
+        );
 
-            if (VkResult.VK_SUCCESS == vkEnumerateInstanceLayerProperties(
-                pProperties: ((VkLayerProperties*)propertiesHandle.DangerousGetHandle()),
-                pPropertyCount: &propertyCount
-            )) {
-                count = propertyCount;
+        if (VkResult.VK_SUCCESS != result) { goto error; }
 
-                return propertiesHandle;
-            }
+        properties = new VkLayerProperties[count];
+
+        fixed (VkLayerProperties* pProperties = properties) {
+            result = vkEnumerateInstanceLayerProperties(
+                pProperties: pProperties,
+                pPropertyCount: &count
+            );
         }
 
-        return SafeUnmanagedMemoryHandle.Create(size: nuint.MinValue);
+        if (VkResult.VK_SUCCESS != result) { goto error; }
+
+        return result;
+    error:
+        properties = [];
+
+        return result;
+    }
+    private unsafe static VkResult GetPhysicalDevices(
+        VkInstance instance,
+        out VkPhysicalDevice[] physicalDevices
+    ) {
+        var count = uint.MinValue;
+        var result = vkEnumeratePhysicalDevices(
+            instance: instance,
+            pPhysicalDeviceCount: &count,
+            pPhysicalDevices: null
+        );
+
+        if (VkResult.VK_SUCCESS != result) { goto error; }
+
+        physicalDevices = new VkPhysicalDevice[count];
+
+        fixed (VkPhysicalDevice* pPhysicalDevices = physicalDevices) {
+            result = vkEnumeratePhysicalDevices(
+                instance: instance,
+                pPhysicalDeviceCount: &count,
+                pPhysicalDevices: pPhysicalDevices
+            );
+        }
+
+        if (VkResult.VK_SUCCESS != result) { goto error; }
+
+        return result;
+    error:
+        physicalDevices = [];
+
+        return result;
     }
 
     public unsafe static SafeVulkanInstanceHandle Create(
@@ -69,137 +120,151 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
         HashSet<string> requestedExtensionNames,
         HashSet<string> requestedLayerNames,
         out VkResult result,
-        nint pAllocator = VkHelpers.VK_NULL_ALLOCATOR
+        nint pAllocator = 0
     ) {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static sbyte* DangerousGetPointer(ReadOnlySpan<byte> span) =>
-            ((sbyte*)Unsafe.AsPointer(value: ref MemoryMarshal.GetReference(span: span)));
+        result = GetInstanceExtensionProperties(properties: out var supportedExtensionProperties);
 
-        result = VkResult.VK_ERROR_INITIALIZATION_FAILED;
+        if (VkResult.VK_SUCCESS != result) { goto error; }
 
-        using var applicationNameHandle = SafeUnmanagedMemoryHandle.Create(encoding: Encoding.UTF8, value: applicationName);
-        using var engineNameHandle = SafeUnmanagedMemoryHandle.Create(encoding: Encoding.UTF8, value: engineName);
-        using var supportedExtensionPropertiesHandle = GetSupportedInstanceExtensionProperties(count: out var supportedExtensionPropertyCount);
-        using var supportedLayerPropertiesHandle = GetSupportedInstanceLayerProperties(count: out var supportedLayerPropertyCount);
-        using var enabledExtensionNamesHandle = VkHelpers.GetUniqueStrings<VkExtensionProperties>(
-            encoding: Encoding.UTF8,
-            foundCount: out var enabledExtensionCount,
-            searchValues: requestedExtensionNames,
-            stringsCount: supportedExtensionPropertyCount,
-            stringsHandle: supportedExtensionPropertiesHandle
-        );
-        using var enabledLayerNamesHandle = VkHelpers.GetUniqueStrings<VkLayerProperties>(
-            encoding: Encoding.UTF8,
-            foundCount: out var enabledLayerCount,
-            searchValues: requestedLayerNames,
-            stringsHandle: supportedLayerPropertiesHandle,
-            stringsCount: supportedLayerPropertyCount
-        );
+        result = GetInstanceLayerProperties(properties: out var supportedLayerProperties);
 
-        var applicationInfo = new VkApplicationInfo {
-            apiVersion = apiVersion,
-            applicationVersion = applicationVersion,
-            engineVersion = engineVersion,
-            pApplicationName = ((sbyte*)applicationNameHandle.DangerousGetHandle()),
-            pEngineName = ((sbyte*)engineNameHandle.DangerousGetHandle()),
-            pNext = null,
-            sType = VkStructureType.VK_STRUCTURE_TYPE_APPLICATION_INFO,
-        };
-        var instanceCreateInfo = new VkInstanceCreateInfo {
-            enabledExtensionCount = enabledExtensionCount,
-            enabledLayerCount = enabledLayerCount,
-            flags = uint.MinValue,
-            pApplicationInfo = &applicationInfo,
-            pNext = null,
-            ppEnabledExtensionNames = ((sbyte**)enabledExtensionNamesHandle.DangerousGetHandle()),
-            ppEnabledLayerNames = ((sbyte**)enabledLayerNamesHandle.DangerousGetHandle()),
-            sType = VkStructureType.VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-        };
+        if (VkResult.VK_SUCCESS != result) { goto error; }
 
-        VkInstance vkInstance;
+        fixed (VkExtensionProperties* pSupportedExtensionProperties = supportedExtensionProperties)
+        fixed (VkLayerProperties* pSupportedLayerProperties = supportedLayerProperties) {
+            var enabledExtensionNames = new List<IntPtr>();
+            var enabledLayerNames = new List<IntPtr>();
+            var uniqueNames = new HashSet<string>();
 
-        result = vkCreateInstance(
-            pAllocator: ((VkAllocationCallbacks*)pAllocator),
-            pCreateInfo: &instanceCreateInfo,
-            pInstance: &vkInstance
-        );
+            for (var i = 0; (i < supportedExtensionProperties.Length); ++i) {
+                var pName = &pSupportedExtensionProperties[i];
+                var name = Encoding.UTF8.GetString(bytes: MemoryMarshal.CreateReadOnlySpanFromNullTerminated(value: ((byte*)pName)));
 
-        if (VkResult.VK_SUCCESS == result) {
-            var instanceSafeHandle = new SafeVulkanInstanceHandle(
-                instanceManualImports: new() {
-                    vkCreateAndroidSurfaceKHR = ((delegate* unmanaged<VkInstance, VkAndroidSurfaceCreateInfoKHR*, VkAllocationCallbacks*, VkSurfaceKHR*, VkResult>)vkGetInstanceProcAddr(
-                        instance: vkInstance,
-                        pName: DangerousGetPointer(span: "vkCreateAndroidSurfaceKHR\u0000"u8)
-                    )),
-                    vkCreateHeadlessSurfaceEXT = ((delegate* unmanaged<VkInstance, VkHeadlessSurfaceCreateInfoEXT*, VkAllocationCallbacks*, VkSurfaceKHR*, VkResult>)vkGetInstanceProcAddr(
-                        instance: vkInstance,
-                        pName: DangerousGetPointer(span: "vkCreateHeadlessSurfaceEXT\u0000"u8)
-                    )),
-                    vkCreateViSurfaceNN = ((delegate* unmanaged<VkInstance, VkViSurfaceCreateInfoNN*, VkAllocationCallbacks*, VkSurfaceKHR*, VkResult>)vkGetInstanceProcAddr(
-                        instance: vkInstance,
-                        pName: DangerousGetPointer(span: "vkCreateViSurfaceNN\u0000"u8)
-                    )),
-                    vkCreateWaylandSurfaceKHR = ((delegate* unmanaged<VkInstance, VkWaylandSurfaceCreateInfoKHR*, VkAllocationCallbacks*, VkSurfaceKHR*, VkResult>)vkGetInstanceProcAddr(
-                        instance: vkInstance,
-                        pName: DangerousGetPointer(span: "vkCreateWaylandSurfaceKHR\u0000"u8)
-                    )),
-                    vkCreateWin32SurfaceKHR = ((delegate* unmanaged<VkInstance, VkWin32SurfaceCreateInfoKHR*, VkAllocationCallbacks*, VkSurfaceKHR*, VkResult>)vkGetInstanceProcAddr(
-                        instance: vkInstance,
-                        pName: DangerousGetPointer(span: "vkCreateWin32SurfaceKHR\u0000"u8)
-                    )),
-                    vkCreateXcbSurfaceKHR = ((delegate* unmanaged<VkInstance, VkXcbSurfaceCreateInfoKHR*, VkAllocationCallbacks*, VkSurfaceKHR*, VkResult>)vkGetInstanceProcAddr(
-                        instance: vkInstance,
-                        pName: DangerousGetPointer(span: "vkCreateXcbSurfaceKHR\u0000"u8)
-                    )),
-                    vkCreateXlibSurfaceKHR = ((delegate* unmanaged<VkInstance, VkXlibSurfaceCreateInfoKHR*, VkAllocationCallbacks*, VkSurfaceKHR*, VkResult>)vkGetInstanceProcAddr(
-                        instance: vkInstance,
-                        pName: DangerousGetPointer(span: "vkCreateXlibSurfaceKHR\u0000"u8)
-                    )),
-                },
-                instanceManualImports2: new() {
-                    vkGetPhysicalDeviceWaylandPresentationSupportKHR = ((delegate* unmanaged<VkPhysicalDevice, uint, IntPtr, VkBool32>)vkGetInstanceProcAddr(
-                        instance: vkInstance,
-                        pName: DangerousGetPointer(span: "vkGetPhysicalDeviceWaylandPresentationSupportKHR\u0000"u8)
-                    )),
-                    vkGetPhysicalDeviceWin32PresentationSupportKHR = ((delegate* unmanaged<VkPhysicalDevice, uint, VkBool32>)vkGetInstanceProcAddr(
-                        instance: vkInstance,
-                        pName: DangerousGetPointer(span: "vkGetPhysicalDeviceWin32PresentationSupportKHR\u0000"u8)
-                    )),
-                    vkGetPhysicalDeviceXcbPresentationSupportKHR = ((delegate* unmanaged<VkPhysicalDevice, uint, IntPtr, uint, VkBool32>)vkGetInstanceProcAddr(
-                        instance: vkInstance,
-                        pName: DangerousGetPointer(span: "vkGetPhysicalDeviceXcbPresentationSupportKHR\u0000"u8)
-                    )),
-                    vkGetPhysicalDeviceXlibPresentationSupportKHR = ((delegate* unmanaged<VkPhysicalDevice, uint, IntPtr, nuint, VkBool32>)vkGetInstanceProcAddr(
-                        instance: vkInstance,
-                        pName: DangerousGetPointer(span: "vkGetPhysicalDeviceXlibPresentationSupportKHR\u0000"u8)
-                    )),
-                },
-                pAllocator: pAllocator
-            );
+                if (requestedExtensionNames.Contains(item: name) && uniqueNames.Add(item: name)) {
+                    enabledExtensionNames.Add(item: ((IntPtr)pName));
+                }
+            }
 
-            instanceSafeHandle.SetHandle(handle: vkInstance);
+            uniqueNames.Clear();
 
-            return instanceSafeHandle;
+            for (var i = 0; (i < supportedExtensionProperties.Length); ++i) {
+                var pName = &pSupportedLayerProperties[i];
+                var name = Encoding.UTF8.GetString(bytes: MemoryMarshal.CreateReadOnlySpanFromNullTerminated(value: ((byte*)pName)));
+
+                if (requestedLayerNames.Contains(item: name) && uniqueNames.Add(item: name)) {
+                    enabledLayerNames.Add(item: ((IntPtr)pName));
+                }
+            }
+
+            fixed (IntPtr* pEnabledExtensionNames = CollectionsMarshal.AsSpan(list: enabledExtensionNames))
+            fixed (IntPtr* pEnabledLayerNames = CollectionsMarshal.AsSpan(list: enabledLayerNames)) {
+                var applicationInfo = new VkApplicationInfo {
+                    apiVersion = apiVersion,
+                    applicationVersion = applicationVersion,
+                    engineVersion = engineVersion,
+                    pApplicationName = DangerousGetUtf8Pointer(span: Encoding.UTF8.GetBytes(s: applicationName).AsSpan()),
+                    pEngineName = DangerousGetUtf8Pointer(span: Encoding.UTF8.GetBytes(s: engineName).AsSpan()),
+                    pNext = null,
+                    sType = VkStructureType.VK_STRUCTURE_TYPE_APPLICATION_INFO,
+                };
+                var instanceCreateInfo = new VkInstanceCreateInfo {
+                    enabledExtensionCount = ((uint)enabledExtensionNames.Count),
+                    enabledLayerCount = ((uint)enabledLayerNames.Count),
+                    flags = uint.MinValue,
+                    pApplicationInfo = &applicationInfo,
+                    pNext = null,
+                    ppEnabledExtensionNames = ((sbyte**)pEnabledExtensionNames),
+                    ppEnabledLayerNames = ((sbyte**)pEnabledLayerNames),
+                    sType = VkStructureType.VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+                };
+
+                VkInstance vkInstance;
+
+                result = vkCreateInstance(
+                    pAllocator: ((VkAllocationCallbacks*)pAllocator),
+                    pCreateInfo: &instanceCreateInfo,
+                    pInstance: &vkInstance
+                );
+
+                if (VkResult.VK_SUCCESS == result) {
+                    var instanceSafeHandle = new SafeVulkanInstanceHandle(
+                        instanceManualImports: new() {
+                            vkCreateAndroidSurfaceKHR = ((delegate* unmanaged<VkInstance, VkAndroidSurfaceCreateInfoKHR*, VkAllocationCallbacks*, VkSurfaceKHR*, VkResult>)vkGetInstanceProcAddr(
+                                instance: vkInstance,
+                                pName: DangerousGetUtf8Pointer(span: Utf8vkCreateAndroidSurfaceKHR)
+                            )),
+                            vkCreateHeadlessSurfaceEXT = ((delegate* unmanaged<VkInstance, VkHeadlessSurfaceCreateInfoEXT*, VkAllocationCallbacks*, VkSurfaceKHR*, VkResult>)vkGetInstanceProcAddr(
+                                instance: vkInstance,
+                                pName: DangerousGetUtf8Pointer(span: Utf8vkCreateHeadlessSurfaceEXT)
+                            )),
+                            vkCreateViSurfaceNN = ((delegate* unmanaged<VkInstance, VkViSurfaceCreateInfoNN*, VkAllocationCallbacks*, VkSurfaceKHR*, VkResult>)vkGetInstanceProcAddr(
+                                instance: vkInstance,
+                                pName: DangerousGetUtf8Pointer(span: Utf8vkCreateViSurfaceNN)
+                            )),
+                            vkCreateWaylandSurfaceKHR = ((delegate* unmanaged<VkInstance, VkWaylandSurfaceCreateInfoKHR*, VkAllocationCallbacks*, VkSurfaceKHR*, VkResult>)vkGetInstanceProcAddr(
+                                instance: vkInstance,
+                                pName: DangerousGetUtf8Pointer(span: Utf8vkCreateWaylandSurfaceKHR)
+                            )),
+                            vkCreateWin32SurfaceKHR = ((delegate* unmanaged<VkInstance, VkWin32SurfaceCreateInfoKHR*, VkAllocationCallbacks*, VkSurfaceKHR*, VkResult>)vkGetInstanceProcAddr(
+                                instance: vkInstance,
+                                pName: DangerousGetUtf8Pointer(span: Utf8vkCreateWin32SurfaceKHR)
+                            )),
+                            vkCreateXcbSurfaceKHR = ((delegate* unmanaged<VkInstance, VkXcbSurfaceCreateInfoKHR*, VkAllocationCallbacks*, VkSurfaceKHR*, VkResult>)vkGetInstanceProcAddr(
+                                instance: vkInstance,
+                                pName: DangerousGetUtf8Pointer(span: Utf8vkCreateXcbSurfaceKHR)
+                            )),
+                            vkCreateXlibSurfaceKHR = ((delegate* unmanaged<VkInstance, VkXlibSurfaceCreateInfoKHR*, VkAllocationCallbacks*, VkSurfaceKHR*, VkResult>)vkGetInstanceProcAddr(
+                                instance: vkInstance,
+                                pName: DangerousGetUtf8Pointer(span: Utf8vkCreateXlibSurfaceKHR)
+                            )),
+                        },
+                        physicalDeviceManualImports: new() {
+                            vkGetPhysicalDeviceWaylandPresentationSupportKHR = ((delegate* unmanaged<VkPhysicalDevice, uint, void*, uint>)vkGetInstanceProcAddr(
+                                instance: vkInstance,
+                                pName: DangerousGetUtf8Pointer(span: Utf8vkGetPhysicalDeviceWaylandPresentationSupportKHR)
+                            )),
+                            vkGetPhysicalDeviceWin32PresentationSupportKHR = ((delegate* unmanaged<VkPhysicalDevice, uint, uint>)vkGetInstanceProcAddr(
+                                instance: vkInstance,
+                                pName: DangerousGetUtf8Pointer(span: Utf8vkGetPhysicalDeviceWin32PresentationSupportKHR)
+                            )),
+                            vkGetPhysicalDeviceXcbPresentationSupportKHR = ((delegate* unmanaged<VkPhysicalDevice, uint, void*, uint, uint>)vkGetInstanceProcAddr(
+                                instance: vkInstance,
+                                pName: DangerousGetUtf8Pointer(span: Utf8vkGetPhysicalDeviceXcbPresentationSupportKHR)
+                            )),
+                            vkGetPhysicalDeviceXlibPresentationSupportKHR = ((delegate* unmanaged<VkPhysicalDevice, uint, void*, nuint, uint>)vkGetInstanceProcAddr(
+                                instance: vkInstance,
+                                pName: DangerousGetUtf8Pointer(span: Utf8vkGetPhysicalDeviceXlibPresentationSupportKHR)
+                            )),
+                        },
+                        pAllocator: pAllocator
+                    );
+
+                    instanceSafeHandle.SetHandle(handle: vkInstance);
+
+                    return instanceSafeHandle;
+                }
+            }
         }
 
+    error:
         return new SafeVulkanInstanceHandle(
             instanceManualImports: default,
-            instanceManualImports2: default,
+            physicalDeviceManualImports: default,
             pAllocator: default
         );
     }
 
     private readonly nint m_pAllocator;
     private readonly VkInstanceManualImports m_instanceManualImports;
-    private readonly VkInstanceManualImports2 m_instanceManualImports2;
+    private readonly VkPhysicalDeviceManualImports m_physicalDeviceManualImports;
 
     private SafeVulkanInstanceHandle(
         VkInstanceManualImports instanceManualImports,
-        VkInstanceManualImports2 instanceManualImports2,
+        VkPhysicalDeviceManualImports physicalDeviceManualImports,
         nint pAllocator
     ) : base(ownsHandle: true) {
         m_instanceManualImports = instanceManualImports;
-        m_instanceManualImports2 = instanceManualImports2;
+        m_physicalDeviceManualImports = physicalDeviceManualImports;
         m_pAllocator = pAllocator;
     }
 
@@ -248,17 +313,17 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
             pAllocator: pAllocator,
             result: out result
         );
-    public unsafe SafeVulkanSurfaceHandle CreateSurface(
+    public unsafe SafeVulkanSurfaceHandle CreateWin32Surface(
+        void* hinstance,
+        void* hwnd,
         nint pAllocator,
-        out VkResult result,
-        HINSTANCE win32InstanceHandle,
-        HWND win32WindowHandle
+        out VkResult result
     ) =>
         SafeVulkanSurfaceHandle.Create(
             createInfo: new VkWin32SurfaceCreateInfoKHR {
                 flags = uint.MinValue,
-                hinstance = ((void*)(IntPtr)win32InstanceHandle),
-                hwnd = ((void*)(IntPtr)win32WindowHandle),
+                hinstance = hinstance,
+                hwnd = hwnd,
                 pNext = null,
                 sType = VkStructureType.VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
             },
@@ -268,15 +333,15 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
             pAllocator: pAllocator,
             result: out result
         );
-    public unsafe SafeVulkanSurfaceHandle CreateSurface(
-        XcbConnection connection,
+    public unsafe SafeVulkanSurfaceHandle CreateXcbSurface(
+        void* connection,
         nint pAllocator,
         out VkResult result,
         uint window
     ) =>
         SafeVulkanSurfaceHandle.Create(
             createInfo: new VkXcbSurfaceCreateInfoKHR {
-                connection = ((void*)(IntPtr)connection),
+                connection = connection,
                 flags = uint.MinValue,
                 pNext = null,
                 sType = VkStructureType.VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR,
@@ -288,7 +353,7 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
             pAllocator: pAllocator,
             result: out result
         );
-    public unsafe SafeVulkanSurfaceHandle CreateSurface(
+    public unsafe SafeVulkanSurfaceHandle CreateXlibSurface(
         void* display,
         nint pAllocator,
         out VkResult result,
@@ -296,11 +361,11 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
     ) =>
         SafeVulkanSurfaceHandle.Create(
             createInfo: new VkXlibSurfaceCreateInfoKHR {
-                dpy = ((void*)(IntPtr)display),
+                dpy = display,
                 flags = uint.MinValue,
                 pNext = null,
                 sType = VkStructureType.VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR,
-                window = ((nuint)(IntPtr)window),
+                window = window,
             },
             createMethod: m_instanceManualImports.vkCreateXlibSurfaceKHR,
             destroyMethod: vkDestroySurfaceKHR,
@@ -308,33 +373,58 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
             pAllocator: pAllocator,
             result: out result
         );
+    public VkResult GetPhysicalDevices(out VkPhysicalDevice[] physicalDevices) {
+        var addRefSuccessful = false;
+        var result = VkResult.VK_ERROR_UNKNOWN;
+
+        DangerousAddRef(success: ref addRefSuccessful);
+
+        try {
+            if (addRefSuccessful) {
+                result = GetPhysicalDevices(
+                    instance: ((VkInstance)handle),
+                    physicalDevices: out physicalDevices
+                );
+            }
+            else {
+                physicalDevices = [];
+            }
+        }
+        finally {
+            if (addRefSuccessful) {
+                DangerousRelease();
+            }
+        }
+
+        return result;
+    }
     public unsafe VkBool32 GetPhysicalDeviceWin32PresentationSupport(
         VkPhysicalDevice physicalDevice,
         uint queueFamilyIndex
     ) =>
-        m_instanceManualImports2.vkGetPhysicalDeviceWin32PresentationSupportKHR(
+        m_physicalDeviceManualImports.vkGetPhysicalDeviceWin32PresentationSupportKHR(
             physicalDevice,
             queueFamilyIndex
         );
     public unsafe VkBool32 GetPhysicalDeviceXcbPresentationSupport(
+        void* connection,
         VkPhysicalDevice physicalDevice,
         uint queueFamilyIndex,
-        XcbConnection connection,
         uint visualId
     ) =>
-        m_instanceManualImports2.vkGetPhysicalDeviceXcbPresentationSupportKHR(
+        m_physicalDeviceManualImports.vkGetPhysicalDeviceXcbPresentationSupportKHR(
             physicalDevice,
             queueFamilyIndex,
             connection,
             visualId
         );
     public unsafe VkBool32 GetPhysicalDeviceXlibPresentationSupport(
+        void* displayHandle,
         VkPhysicalDevice physicalDevice,
         uint queueFamilyIndex,
-        IntPtr displayHandle,
         nuint visualId
     ) =>
-        m_instanceManualImports2.vkGetPhysicalDeviceXlibPresentationSupportKHR(
+        m_physicalDeviceManualImports.vkGetPhysicalDeviceXlibPresentationSupportKHR(
             physicalDevice,
             queueFamilyIndex,
             displayHandle,
