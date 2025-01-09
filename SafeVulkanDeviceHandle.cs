@@ -9,7 +9,7 @@ public sealed class SafeVulkanDeviceHandle : SafeHandleZeroOrMinusOneIsInvalid
     public unsafe static SafeVulkanDeviceHandle Create(
         VkDeviceCreateInfo createInfo,
         VkPhysicalDevice physicalDevice,
-        nint pAllocator = default
+        nint pAllocator = 0
     ) {
         var deviceHandle = new SafeVulkanDeviceHandle(pAllocator: pAllocator);
 

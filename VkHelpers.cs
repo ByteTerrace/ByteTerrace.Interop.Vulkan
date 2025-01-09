@@ -7,8 +7,6 @@ namespace ByteTerrace.Interop.Vulkan;
 
 public static class VkHelpers
 {
-    public const nint VK_NULL_ALLOCATOR = 0;
-
     internal unsafe static SafeUnmanagedMemoryHandle GetUniqueStrings<T>(
         Encoding encoding,
         out uint foundCount,
@@ -58,7 +56,7 @@ public static class VkHelpers
         uint queueFamilyIndex,
         out VkQueue queue,
         HashSet<string> requestedExtensionNames,
-        nint pAllocator = default
+        nint pAllocator = 0
     ) {
         using var supportedExtensionPropertiesHandle = physicalDevice.GetSupportedDeviceExtensionProperties(
             count: out var supportedExtensionPropertyCount,

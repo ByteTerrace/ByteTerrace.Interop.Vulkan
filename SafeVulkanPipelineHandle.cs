@@ -11,7 +11,7 @@ public sealed class SafeVulkanPipelineHandle : SafeHandleZeroOrMinusOneIsInvalid
         SafeVulkanDeviceHandle logicalDeviceHandle,
         VkPipelineCache pipelineCache,
         out VkResult result,
-        nint pAllocator = default
+        nint pAllocator = 0
     ) {
         result = VkResult.VK_ERROR_INITIALIZATION_FAILED;
 

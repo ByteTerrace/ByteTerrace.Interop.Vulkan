@@ -8,7 +8,6 @@ using TerraFX.Interop.Vulkan;
 using TerraFX.Interop.Xlib;
 using WaylandSharp;
 using Windows.Win32;
-using Windows.Win32.Foundation;
 using Windows.Win32.UI.WindowsAndMessaging;
 using XOrg.X11;
 using XOrg.XCB;
@@ -197,12 +196,20 @@ try {
 
                 _ = wlDisplay.Dispatch();
 
-                vulkanSurfaceHandle = vulkanInstanceHandle.CreateSurface(
+                vulkanResult = ((VK_TRUE == vulkanInstanceHandle.GetPhysicalDeviceWaylandPresentationSupport(
                     display: ((void*)wlDisplay.RawPointer),
-                    pAllocator: vulkanAllocationCallbacksPointer,
-                    result: out vulkanResult,
-                    surface: ((void*)wlSurface.RawPointer)
-                );
+                    physicalDevice: vulkanPhysicalDevice,
+                    queueFamilyIndex: vulkanPhysicalGraphicsDeviceQueueFamilyIndex
+                ) ? VkResult.VK_SUCCESS : VkResult.VK_ERROR_FORMAT_NOT_SUPPORTED));
+
+                if (VkResult.VK_SUCCESS == vulkanResult) {
+                    vulkanSurfaceHandle = vulkanInstanceHandle.CreateSurface(
+                        display: ((void*)wlDisplay.RawPointer),
+                        pAllocator: vulkanAllocationCallbacksPointer,
+                        result: out vulkanResult,
+                        surface: ((void*)wlSurface.RawPointer)
+                    );
+                }
             }
             break;
         case 1U:

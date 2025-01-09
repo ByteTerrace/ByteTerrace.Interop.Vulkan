@@ -23,7 +23,7 @@ public sealed class SafeVulkanDeviceChildHandle<THandle> : SafeHandleZeroOrMinus
         DeviceChildDestroyMethod destroyMethod,
         SafeVulkanDeviceHandle logicalDeviceHandle,
         out VkResult result,
-        nint pAllocator = VkHelpers.VK_NULL_ALLOCATOR
+        nint pAllocator = 0
     ) where TCreateInfo : unmanaged {
         result = VkResult.VK_ERROR_INITIALIZATION_FAILED;
 

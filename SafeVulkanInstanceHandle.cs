@@ -21,7 +21,7 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
     private static ReadOnlySpan<byte> Utf8vkGetPhysicalDeviceXcbPresentationSupportKHR => "vkGetPhysicalDeviceXcbPresentationSupportKHR\u0000"u8;
     private static ReadOnlySpan<byte> Utf8vkGetPhysicalDeviceXlibPresentationSupportKHR => "vkGetPhysicalDeviceXlibPresentationSupportKHR\u0000"u8;
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(methodImplOptions: MethodImplOptions.AggressiveInlining)]
     private unsafe static sbyte* DangerousGetUtf8Pointer(ReadOnlySpan<byte> span) =>
         ((sbyte*)Unsafe.AsPointer(value: ref MemoryMarshal.GetReference(span: span)));
     private unsafe static VkResult GetInstanceExtensionProperties(out VkExtensionProperties[] properties) {
@@ -398,6 +398,16 @@ public sealed class SafeVulkanInstanceHandle : SafeHandleZeroOrMinusOneIsInvalid
 
         return result;
     }
+    public unsafe VkBool32 GetPhysicalDeviceWaylandPresentationSupport(
+        void* display,
+        VkPhysicalDevice physicalDevice,
+        uint queueFamilyIndex
+    ) =>
+        m_physicalDeviceManualImports.vkGetPhysicalDeviceWaylandPresentationSupportKHR(
+            physicalDevice,
+            queueFamilyIndex,
+            display
+        );
     public unsafe VkBool32 GetPhysicalDeviceWin32PresentationSupport(
         VkPhysicalDevice physicalDevice,
         uint queueFamilyIndex

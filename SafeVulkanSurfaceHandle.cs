@@ -17,7 +17,7 @@ public sealed class SafeVulkanSurfaceHandle : SafeHandleZeroOrMinusOneIsInvalid
         SurfaceDestroyMethod destroyMethod,
         SafeVulkanInstanceHandle instanceHandle,
         out VkResult result,
-        nint pAllocator = VkHelpers.VK_NULL_ALLOCATOR
+        nint pAllocator = 0
     ) where TCreateInfo : unmanaged {
         result = VkResult.VK_ERROR_INITIALIZATION_FAILED;
 
