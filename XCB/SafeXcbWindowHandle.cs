@@ -15,11 +15,10 @@ public sealed class SafeXcbWindowHandle : SafeHandleZeroOrMinusOneIsInvalid
         short y
     ) {
         var addRefCountSuccess = false;
-        var windowHandle = new SafeXcbWindowHandle(connectionHandle: connectionHandle);
 
-        connectionHandle.DangerousAddRef(success: ref addRefCountSuccess);
+        try {
+            connectionHandle.DangerousAddRef(success: ref addRefCountSuccess);
 
-        if (addRefCountSuccess) {
             var connection = ((XcbConnection)connectionHandle.DangerousGetHandle());
             var windowId = Interop.GenerateId(connection: connection);
             _ = Interop.CreateWindow(
@@ -37,16 +36,19 @@ public sealed class SafeXcbWindowHandle : SafeHandleZeroOrMinusOneIsInvalid
                 x: x,
                 y: y
             );
+            var windowHandle = new SafeXcbWindowHandle(connectionHandle: connectionHandle);
 
-            if (uint.MinValue != windowId) {
-                windowHandle.SetHandle(handle: ((nint)windowId));
-            }
-            else {
+            windowHandle.SetHandle(handle: ((nint)windowId));
+
+            return windowHandle;
+        }
+        catch {
+            if (addRefCountSuccess) {
                 connectionHandle.DangerousRelease();
             }
-        }
 
-        return windowHandle;
+            throw;
+        }
     }
 
     private readonly SafeXcbConnectionHandle m_connectionHandle;
@@ -56,11 +58,14 @@ public sealed class SafeXcbWindowHandle : SafeHandleZeroOrMinusOneIsInvalid
     }
 
     protected unsafe override bool ReleaseHandle() {
+        var connectionHandle = m_connectionHandle;
+
         Interop.DestroyWindow(
-            connection: ((XcbConnection)m_connectionHandle.DangerousGetHandle()),
+            connection: ((XcbConnection)connectionHandle.DangerousGetHandle()),
             window: ((uint)handle)
         );
-        m_connectionHandle.DangerousRelease();
+
+        try { connectionHandle.DangerousRelease(); } catch {}
 
         return true;
     }

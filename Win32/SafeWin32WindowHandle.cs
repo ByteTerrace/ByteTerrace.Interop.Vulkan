@@ -97,13 +97,13 @@ public sealed class SafeWin32WindowHandle : SafeHandleZeroOrMinusOneIsInvalid
     }
 
     protected unsafe override bool ReleaseHandle() {
-#pragma warning disable CA1416
         var @class = m_class;
+#pragma warning disable CA1416
         var result = PInvoke.DestroyWindow(hWnd: ((HWND)handle));
 #pragma warning restore CA1416
 
         if ((@class is not null) && !@class.IsClosed && !@class.IsInvalid) {
-            @class.DangerousRelease();
+            try { @class.DangerousRelease(); } catch {}
         }
 
         return result;

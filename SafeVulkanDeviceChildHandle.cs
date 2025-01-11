@@ -93,7 +93,7 @@ public sealed class SafeVulkanDeviceChildHandle<THandle> : SafeHandleZeroOrMinus
         }
 
         if ((deviceHandle is not null) && !deviceHandle.IsClosed && !deviceHandle.IsInvalid) {
-            deviceHandle.DangerousRelease();
+            try { deviceHandle.DangerousRelease(); } catch {}
         }
 
         return true;

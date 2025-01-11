@@ -84,7 +84,7 @@ public sealed class SafeVulkanSurfaceHandle : SafeHandleZeroOrMinusOneIsInvalid
         );
 
         if ((instanceHandle is not null) && !instanceHandle.IsClosed && !instanceHandle.IsInvalid) {
-            instanceHandle.DangerousRelease();
+            try { instanceHandle.DangerousRelease(); } catch {}
         }
 
         return true;

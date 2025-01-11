@@ -86,18 +86,18 @@ public sealed class SafeWin32WindowClassHandle : SafeHandleZeroOrMinusOneIsInval
     }
 
     protected unsafe override bool ReleaseHandle() {
-#pragma warning disable CA1416
         var instance = m_instance;
+#pragma warning disable CA1416
         var result = PInvoke.UnregisterClass(
             hInstance: ((HINSTANCE)instance.DangerousGetHandle()),
             lpClassName: ((PCWSTR)(char*)handle)
         );
+#pragma warning restore CA1416
 
         if ((instance is not null) && !instance.IsClosed && !instance.IsInvalid) {
-            instance.DangerousRelease();
+            try { instance.DangerousRelease(); } catch {}
         }
 
         return result;
-#pragma warning restore CA1416
     }
 }

@@ -18,11 +18,10 @@ public sealed class SafeX11WindowHandle : SafeHandleZeroOrMinusOneIsInvalid
         int y
     ) {
         var addRefCountSuccess = false;
-        var windowHandle = new SafeX11WindowHandle(displayHandle: displayHandle);
 
-        displayHandle.DangerousAddRef(success: ref addRefCountSuccess);
+        try {
+            displayHandle.DangerousAddRef(success: ref addRefCountSuccess);
 
-        if (addRefCountSuccess) {
             var window = XCreateSimpleWindow(
                 param0: ((Display*)displayHandle.DangerousGetHandle()),
                 param1: parent,
@@ -34,16 +33,19 @@ public sealed class SafeX11WindowHandle : SafeHandleZeroOrMinusOneIsInvalid
                 param7: border,
                 param8: background
             );
+            var windowHandle = new SafeX11WindowHandle(displayHandle: displayHandle);
 
-            if (IntPtr.Zero != window) {
-                windowHandle.SetHandle(handle: window);
-            }
-            else {
+            windowHandle.SetHandle(handle: window);
+
+            return windowHandle;
+        }
+        catch {
+            if (addRefCountSuccess) {
                 displayHandle.DangerousRelease();
             }
-        }
 
-        return windowHandle;
+            throw;
+        }
     }
 
     private readonly SafeX11DisplayHandle m_displayHandle;
@@ -53,9 +55,17 @@ public sealed class SafeX11WindowHandle : SafeHandleZeroOrMinusOneIsInvalid
     }
 
     protected unsafe override bool ReleaseHandle() {
-        return Convert.ToBoolean(value: XDestroyWindow(
-            param0: ((Display*)m_displayHandle.DangerousGetHandle()),
-            param1: ((Window)handle))
+        var displayHandle = m_displayHandle;
+
+        _ = XDestroyWindow(
+            param0: ((Display*)displayHandle.DangerousGetHandle()),
+            param1: ((Window)handle)
         );
+
+        if ((displayHandle is not null) && !displayHandle.IsClosed && !displayHandle.IsInvalid) {
+            try { displayHandle.DangerousRelease(); } catch {}
+        }
+
+        return true;
     }
 }

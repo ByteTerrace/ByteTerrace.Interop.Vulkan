@@ -74,7 +74,7 @@ public sealed class SafeVulkanPipelineHandle : SafeHandleZeroOrMinusOneIsInvalid
         );
 
         if ((deviceHandle is not null) && !deviceHandle.IsClosed && !deviceHandle.IsInvalid) {
-            deviceHandle.DangerousRelease();
+            try { deviceHandle.DangerousRelease(); } catch {}
         }
 
         return true;
